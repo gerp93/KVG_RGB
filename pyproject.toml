@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kvg-rgb"
+dynamic = ["version"]
+description = "RGB device controller using OpenRGB with CLI and future GUI support"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "KVG"}
+]
+dependencies = [
+    "openrgb-python>=0.2.15",
+]
+
+[project.scripts]
+kvg-rgb = "kvg_rgb.cli:main"
+
+[tool.setuptools]
+packages = ["kvg_rgb"]
+
+[tool.setuptools.dynamic]
+version = {attr = "kvg_rgb.__version__"}
