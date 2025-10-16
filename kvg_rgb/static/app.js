@@ -202,20 +202,32 @@ function toggleZoneSelection(deviceIndex, zoneIndex) {
     const device = devices[deviceIndex];
     if (device.excluded) return;
     
-    // If device is selected, deselect it first
-    if (isDeviceSelected(deviceIndex)) {
-        selectedItems = selectedItems.filter(item => 
-            !(item.type === 'device' && item.deviceIndex === deviceIndex)
-        );
-    }
+    // Check if this specific zone is in selectedItems (not just appearing selected because device is selected)
+    const zoneExplicitlySelected = selectedItems.some(item => 
+        item.type === 'zone' && 
+        item.deviceIndex === deviceIndex && 
+        item.zoneIndex === zoneIndex
+    );
     
-    if (isZoneSelected(deviceIndex, zoneIndex)) {
-        // Deselect zone
+    if (zoneExplicitlySelected) {
+        // This zone is explicitly selected - uncheck just this zone
         selectedItems = selectedItems.filter(item => 
             !(item.type === 'zone' && item.deviceIndex === deviceIndex && item.zoneIndex === zoneIndex)
         );
+        // Also uncheck parent device if it's selected
+        if (isDeviceSelected(deviceIndex)) {
+            selectedItems = selectedItems.filter(item => 
+                !(item.type === 'device' && item.deviceIndex === deviceIndex)
+            );
+        }
     } else {
-        // Select zone
+        // Zone not explicitly selected - might be selected because device is selected
+        // Deselect parent device if selected, then select this zone
+        if (isDeviceSelected(deviceIndex)) {
+            selectedItems = selectedItems.filter(item => 
+                !(item.type === 'device' && item.deviceIndex === deviceIndex)
+            );
+        }
         selectedItems.push({ type: 'zone', deviceIndex, zoneIndex });
     }
     displayDevices();
