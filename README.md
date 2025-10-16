@@ -8,6 +8,7 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 - 🌈 Built-in effects (rainbow, breathing)
 - 🔧 Extensible architecture for future GUI development
 - 📦 Can be packaged as standalone executable for sharing
+- 🎛️ Zone management - resize addressable RGB zones on compatible devices
 
 
 ## Installation
@@ -81,6 +82,12 @@ kvg-rgb --help
 # List all RGB devices
 kvg-rgb list
 
+# View devices with their zones and LED counts
+kvg-rgb zones
+
+# Resize a zone (e.g., device 1, zone 3, to 35 LEDs)
+kvg-rgb resize 1 3 35
+
 # Set all devices to red
 kvg-rgb color 255 0 0
 
@@ -100,6 +107,34 @@ kvg-rgb breathe 0 150 255
 kvg-rgb breathe 255 0 0 --duration 45 --speed 1.5
 ```
 
+### Zone Management
+
+Many RGB devices (especially motherboards) have addressable RGB headers with resizable zones. You can view and resize these zones using the CLI:
+
+```powershell
+# View all devices with their zones
+kvg-rgb zones
+
+# Example output:
+# [Device 1] ASUS PRIME Z890-P WIFI
+#   Total LEDs: 96
+#   Zones: 4
+#
+#   Zone Details:
+#     [Zone 0] Aura Mainboard - 1 LED
+#     [Zone 1] Aura Addressable 1 - 30 LEDs
+#     [Zone 2] Aura Addressable 2 - 30 LEDs
+#     [Zone 3] Aura Addressable 3 - 35 LEDs
+
+# Resize a zone: kvg-rgb resize <device_index> <zone_index> <new_size>
+kvg-rgb resize 1 3 50  # Resize device 1, zone 3 to 50 LEDs
+
+# Interactive zone manager (standalone script)
+python zone_manager.py
+```
+
+**Note**: Zone resizing is useful when you've added or removed RGB strips from your motherboard's addressable headers. Not all zones can be resized - it depends on the device capabilities.
+
 ### Using as Python Module
 
 ```python
@@ -117,7 +152,18 @@ with RGBController() as controller:
     controller.rainbow_effect(duration=10, speed=1.5)
 ```
 
-## Available Utility Functions
+## Available Commands & Functions
+
+### CLI Commands
+
+- `list` - List all RGB devices with basic info
+- `zones` - List all devices with detailed zone information
+- `resize <device> <zone> <size>` - Resize a specific zone
+- `color <r> <g> <b>` - Set device(s) to a solid color
+- `rainbow` - Run rainbow cycling effect
+- `breathe <r> <g> <b>` - Run breathing/pulsing effect
+
+### Python API
 
 See `kvg_rgb/core.py` for the full RGBController class:
 
@@ -125,6 +171,15 @@ See `kvg_rgb/core.py` for the full RGBController class:
 - `set_color(r, g, b, device_index=None)` - Set device(s) to a color
 - `rainbow_effect(duration, speed, device_index=None)` - Rainbow cycling effect
 - `breathing_effect(r, g, b, duration, speed, device_index=None)` - Breathing/pulsing effect
+
+See `kvg_rgb/cli.py` for CLI-specific functions:
+
+- `list_devices()` - List all devices
+- `list_zones()` - List devices with zone details
+- `resize_zone_command(args)` - Resize a zone
+- `set_color_command(args)` - Set color command handler
+- `rainbow_command(args)` - Rainbow effect command handler
+- `breathe_command(args)` - Breathing effect command handler
 
 ## Building Standalone Executable
 
