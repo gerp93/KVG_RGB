@@ -27,12 +27,9 @@ kvg-rgb color 255 0 0
 ```
 
 ### Build Executable
-```powershell
-.\venv\Scripts\Activate.ps1
-python release.py          # Cross-platform (recommended)
-# OR
-.\release.ps1              # Windows PowerShell only
-# Output: dist\kvg-rgb.exe
+```bash
+python release.py
+# Output: dist\kvg-rgb.exe (Windows) or dist/kvg-rgb (Linux/macOS)
 ```
 
 ### Reinstall Package

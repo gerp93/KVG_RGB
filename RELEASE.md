@@ -43,12 +43,6 @@ Edit `CHANGELOG.md` and move items from `[Unreleased]` to a new version section:
 python release.py
 ```
 
-Or on Windows:
-```powershell
-python release.py
-# OR keep using: .\release.ps1
-```
-
 This automatically:
 - ✅ Activates virtual environment
 - ✅ Cleans old builds
@@ -126,10 +120,9 @@ pip install kvg-rgb
 
 - [ ] Update version in `kvg_rgb\__init__.py`
 - [ ] Update `CHANGELOG.md` with new changes
-- [ ] Run `.\release.ps1`
-- [ ] Test `.\dist\kvg-rgb.exe --help` and `.\dist\kvg-rgb.exe list`
-- [ ] Verify all 3 files in `dist\` folder
-- [ ] Create GitHub release with `.exe` attachment
+- [ ] Run `python release.py`
+- [ ] Test the executable and verify all 3 files in `dist\` folder
+- [ ] Create GitHub release with executable attachment
 - [ ] (Optional) Upload to PyPI: `twine upload dist\kvg_rgb-*`
 - [ ] (Optional) Announce release
 
@@ -211,11 +204,11 @@ python release.py
 
 ## 📂 What Gets Created
 
-After running `.\release.ps1`, you'll have:
+After running `python release.py`, you'll have:
 
 ```
 dist/
-├── kvg-rgb.exe                      # ~8-9 MB - Standalone executable
+├── kvg-rgb.exe                      # ~8-9 MB - Standalone executable (Windows)
 ├── kvg_rgb-X.Y.Z-py3-none-any.whl  # ~6 KB - Python wheel
 └── kvg_rgb-X.Y.Z.tar.gz            # ~7 KB - Source archive
 ```
