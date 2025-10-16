@@ -3,6 +3,7 @@ Database module for persistent color storage.
 """
 import sqlite3
 import os
+import json
 from pathlib import Path
 from typing import Optional, Tuple, List
 
@@ -39,6 +40,18 @@ class ColorDatabase:
                     b INTEGER NOT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     friendly_name TEXT,
+                    PRIMARY KEY (device_index, zone_index)
+                )
+            ''')
+            
+            # Create effects table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS effects (
+                    device_index INTEGER NOT NULL,
+                    zone_index INTEGER NOT NULL,
+                    effect_type TEXT NOT NULL,
+                    effect_params TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (device_index, zone_index)
                 )
             ''')
@@ -290,3 +303,72 @@ class ColorDatabase:
                 return (result[0], result[1])
             else:
                 return (100, 100)  # Default to 100% brightness and saturation
+
+    def set_effect(self, device_index: int, zone_index: int, effect_type: str, effect_params: Optional[str] = None):
+        """
+        Set an effect for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            effect_type: Type of effect ('static', 'rainbow', 'breathing', 'wave', 'cycle', etc.)
+            effect_params: JSON string with effect parameters (speed, color, etc.)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO effects (device_index, zone_index, effect_type, effect_params, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (device_index, zone_index, effect_type, effect_params))
+            conn.commit()
+    
+    def get_effect(self, device_index: int, zone_index: int) -> Optional[Tuple[str, Optional[str]]]:
+        """
+        Get the active effect for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            
+        Returns:
+            Tuple of (effect_type, effect_params) if found, None otherwise
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT effect_type, effect_params FROM effects
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            result = cursor.fetchone()
+            return tuple(result) if result else None
+    
+    def clear_effect(self, device_index: int, zone_index: int):
+        """
+        Clear the effect for a zone (sets to static).
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM effects
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            conn.commit()
+    
+    def get_all_effects(self) -> List[Tuple[int, int, str, Optional[str]]]:
+        """
+        Get all active effects.
+        
+        Returns:
+            List of tuples (device_index, zone_index, effect_type, effect_params)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT device_index, zone_index, effect_type, effect_params FROM effects
+                ORDER BY device_index, zone_index
+            ''')
+            return cursor.fetchall()

@@ -9,36 +9,51 @@
 ✅ UI spacing and margins polished
 ✅ Zone flash feature (works for multi-zone devices)
 ✅ Multi-mode support (Direct/Custom/Static)
+✅ Friendly zone names
+✅ Zone resize controls
+✅ Per-zone brightness & saturation sliders
+✅ Per-zone effects (rainbow, breathing, wave, cycle, static)
+✅ Two-column UI layout with sticky color controls
+✅ Full-width color picker with visible sliders
+✅ Selection counting (devices, zones, LEDs)
+✅ Per-zone color picker buttons
+✅ UI reorganization (selection status, Reset All button)
+✅ Old effects section removed
 
 ## Planned Features
 
-### 1. Zone Flash/Identification ✅
-**Purpose**: Help users visually identify which physical LED corresponds to which zone
-- ✅ Add "Flash" button to each zone
-- ✅ When clicked, flash that zone white/black 5 times
-- ✅ Then restore previous color
-- ✅ Threading isolation (separate OpenRGB connection per flash)
-- ⚠️ Note: Works best for multi-zone devices (motherboard)
-- **Status**: COMPLETE
+### 1. Selection Status Display Format 🎯
+**Purpose**: Make selection status more compact
+- Change selection count from multi-line to pipe-delimited format
+- Example: "3 Devices | 7 Zones | 142 LEDs" (similar to device cards)
+- Reduce vertical space in color control panel
+- **Priority**: HIGH - Quick UI polish before commit
+- **Status**: TODO
 
-### 2. Friendly Zone Names ✅
-**Purpose**: Let users rename zones to meaningful names (e.g., "CPU Header" instead of "Addressable 1")
-- ✅ Add `friendly_name` field to database
-- ✅ Add text input/edit button next to zone name
-- ✅ Display friendly name in UI (with original name as subtitle)
-- ✅ Store in database
-- ✅ API endpoint `/api/zone/rename`
-- **Status**: COMPLETE
+### 2. Recent Colors Section 🎨
+**Purpose**: Quick access to recently used custom colors
+- Add "Recent Colors" section under "Quick Colors"
+- Store last 8-10 custom colors selected via color picker
+- Display as color swatches (similar to quick colors)
+- Click to apply recent color
+- Persist in localStorage or database
+- **Priority**: MEDIUM - Nice quality of life feature
+- **Status**: TODO
 
-### 3. Zone Resize Controls ✅
-**Purpose**: Allow users to adjust the number of LEDs in resizable zones
-- ✅ Resize button (⚙️) for all zones
-- ✅ Dialog for entering new LED count
-- ✅ Backend API endpoint `/api/zone/resize`
-- ✅ Validation (1-500 LEDs range, or min/max if available)
-- ✅ Error handling for non-resizable zones
-- ⚠️ Note: OpenRGB SDK reports all zones as "resizable" even if they're not - actual resizability determined at runtime
-- **Status**: COMPLETE (works for addressable zones like motherboard headers)
+### 3. Device Lock/Toggle for Zone Controls 🔒
+**Purpose**: Simplify UI by treating entire device as single unit when desired
+- Add lock/unlock toggle button on each device card
+- **Locked Mode**: 
+  - Show device-level controls (color picker, brightness, saturation, effect selector)
+  - Apply changes to ALL zones at once
+  - Hide individual zone controls completely
+  - Don't display zone rows at all
+- **Unlocked Mode** (current behavior):
+  - Show all zones with individual controls
+  - Per-zone color pickers, sliders, effect selectors
+- Benefits: Cleaner UI for devices you want uniform, per-zone control when needed
+- **Priority**: MEDIUM-HIGH - Significant UX improvement
+- **Status**: TODO
 
 ### 4. Individual LED Control & Gradients ⏳
 **Purpose**: Fine-grained control for advanced effects
@@ -48,53 +63,39 @@
 - Gradient generator (start color → end color)
 - Pattern options (alternating, wave, etc.)
 - **Priority**: LOW - Advanced feature, can wait
+- **Status**: TODO
 
-### 5. Brightness & Saturation Controls ✅
-**Purpose**: Adjust color intensity without changing hue
-- ✅ Add brightness slider per device/zone (0-100%)
-- ✅ Add saturation slider per device/zone (0-100%)
-- ✅ Apply using HSV color space conversion
-- ✅ Store in database with colors
-- ✅ Database preservation when setting new colors
-- ✅ Works for both individual zones and entire devices
-- ✅ Real-time updates with visual feedback
-- **Status**: COMPLETE
+## Implementation Order (Next Steps)
 
-### 6. Per-Device/Zone Effects ⏳
-**Purpose**: Apply animated effects to specific devices or zones
-- Currently have rainbow and breathing effects (global only)
-- Add effect selector per device/zone
-- Effects: Static, Rainbow, Breathing, Wave, Cycle
-- Effect parameters (speed, direction, etc.)
-- Store active effects in database
-- **Priority**: MEDIUM-LOW - Cool but not essential
+### Phase 1 - Pre-Commit Polish 🎯
+1. **Selection Status Format** - Quick 5-minute change
+2. Commit current UI improvements
 
-## Implementation Order (Suggested)
-
-### Phase 1 - Quick Wins 🎯
-1. **Zone Flash** - Easy to implement, very useful
-2. **Zone Resize Backend** - Dialog already exists, just needs API
-
-### Phase 2 - Quality of Life 🎨
-3. **Friendly Zone Names** - Makes UI more user-friendly
-4. **Brightness/Saturation** - Common feature request
+### Phase 2 - Quality of Life Enhancements 🎨
+3. **Recent Colors Section** - Moderate complexity, good UX
+4. **Device Lock Toggle** - More complex, significant UX improvement
 
 ### Phase 3 - Advanced Features 🚀
-5. **Per-Device/Zone Effects** - More complex, requires effect management
-6. **Individual LED Control** - Most complex, advanced users only
+5. **Individual LED Control** - Most complex, advanced users only
 
 ## Technical Notes
 
-### Database Schema Updates Needed
+### Completed Database Schema
 ```sql
--- For friendly names
-ALTER TABLE colors ADD COLUMN friendly_name TEXT;
+-- ✅ Colors table with all fields
+CREATE TABLE colors (
+    device_index INTEGER,
+    zone_index INTEGER,
+    r INTEGER,
+    g INTEGER,
+    b INTEGER,
+    friendly_name TEXT,
+    brightness INTEGER DEFAULT 100,
+    saturation INTEGER DEFAULT 100,
+    PRIMARY KEY (device_index, zone_index)
+);
 
--- For brightness/saturation
-ALTER TABLE colors ADD COLUMN brightness INTEGER DEFAULT 100;
-ALTER TABLE colors ADD COLUMN saturation INTEGER DEFAULT 100;
-
--- For effects (new table)
+-- ✅ Effects table
 CREATE TABLE effects (
     device_index INTEGER,
     zone_index INTEGER,
@@ -104,23 +105,23 @@ CREATE TABLE effects (
 );
 ```
 
-### API Endpoints to Add
-- `POST /api/zone/flash` - Flash zone for identification
-- `POST /api/zone/resize` - Resize zone LED count
-- `POST /api/zone/rename` - Set friendly name
-- `POST /api/zone/led/{led_index}/color` - Set individual LED color
-- `POST /api/effect/start` - Start effect on device/zone
-- `POST /api/effect/stop` - Stop effect
+### Completed API Endpoints
+- ✅ `POST /api/zone/flash` - Flash zone for identification
+- ✅ `POST /api/zone/resize` - Resize zone LED count
+- ✅ `POST /api/zone/rename` - Set friendly name
+- ✅ `POST /api/zone/brightness` - Set brightness/saturation
+- ✅ `POST /api/zone/effect` - Set zone effect
+- ✅ `POST /api/zone/color` - Set zone color
 
-### UI Components to Add
-- Flash button (⚡) next to each zone
-- Inline text edit for friendly names
-- Brightness/saturation sliders in color control
-- Effect selector dropdown
-- LED grid view (collapsible, per zone)
+### Future API Endpoints Needed
+- `POST /api/device/lock` - Toggle device lock state
+- `POST /api/device/color` - Set color for locked device (all zones)
+- `POST /api/device/brightness` - Set brightness for locked device
+- `POST /api/device/effect` - Set effect for locked device
+- `GET /api/colors/recent` - Get recent custom colors
+- `POST /api/colors/recent` - Save recent custom color
+- `POST /api/zone/led/{led_index}/color` - Set individual LED color
 
 ---
 
-**Let me know which feature you'd like to start with!** 
-
-Recommendation: Start with **Zone Flash** - it's quick, easy, and immediately useful for identifying zones.
+**Ready to commit current changes and then tackle the new features!**

@@ -50,11 +50,24 @@ function displayDevices() {
                     <div class="device-name-large">${device.name}</div>
                     <div class="device-stats">💡 ${device.leds} LEDs | 📦 ${device.zones.length} Zones</div>
                 </div>
-                <button class="device-toggle-mini" 
-                        onclick="event.stopPropagation(); toggleDevice('${device.name.replace(/'/g, "\\'")}', ${device.index})"
-                        title="Disable this device">
-                    🟢
-                </button>
+                <div class="device-actions">
+                    <select class="effect-selector" 
+                            onclick="event.stopPropagation()"
+                            onchange="setDeviceEffect(${device.index}, this.value)"
+                            title="Set effect for all zones">
+                        <option value="">Set All Zones...</option>
+                        <option value="static">Static</option>
+                        <option value="rainbow">🌈 Rainbow</option>
+                        <option value="breathing">💨 Breathing</option>
+                        <option value="wave">🌊 Wave</option>
+                        <option value="cycle">🔄 Cycle</option>
+                    </select>
+                    <button class="device-toggle-mini" 
+                            onclick="event.stopPropagation(); toggleDevice('${device.name.replace(/'/g, "\\'")}', ${device.index})"
+                            title="Disable this device">
+                        🟢
+                    </button>
+                </div>
             </div>
             
             ${device.zones.length > 0 ? `
@@ -64,44 +77,89 @@ function displayDevices() {
                         const originalZoneIndex = device.zones.indexOf(zone);
                         return `
                         <div class="zone-item-selectable ${isZoneSelected(device.index, originalZoneIndex) ? 'selected' : ''}"
-                             onclick="toggleZoneSelection(${device.index}, ${originalZoneIndex})"
                              data-device="${device.index}"
                              data-zone="${originalZoneIndex}">
-                            <div class="selection-indicator">
-                                <span class="checkbox">${isZoneSelected(device.index, originalZoneIndex) ? '☑' : '☐'}</span>
-                            </div>
-                            <div class="zone-info-compact">
-                                <div class="zone-name-text">
-                                    ${zone.friendly_name ? `
-                                        <span class="zone-friendly-name">${zone.friendly_name}</span>
-                                        <span class="zone-original-name">${zone.name}</span>
-                                    ` : zone.name}
+                            <div class="zone-main-row" onclick="toggleZoneSelection(${device.index}, ${originalZoneIndex})">
+                                <div class="selection-indicator">
+                                    <span class="checkbox">${isZoneSelected(device.index, originalZoneIndex) ? '☑' : '☐'}</span>
                                 </div>
-                                <div class="zone-led-count">${zone.leds} LEDs</div>
-                            </div>
-                            <div class="zone-actions">
-                                <button class="btn-mini" 
-                                        onclick="event.stopPropagation(); editZoneName(${device.index}, ${originalZoneIndex}, '${zone.name.replace(/'/g, "\\'")}', '${(zone.friendly_name || '').replace(/'/g, "\\'")}')"
-                                        title="Rename zone">
-                                    ✏️
-                                </button>
-                                <button class="btn-mini btn-flash" 
-                                        onclick="event.stopPropagation(); flashZone(${device.index}, ${originalZoneIndex})"
-                                        title="Flash zone to identify">
-                                    ⚡
-                                </button>
-                                ${zone.resizable ? `
+                                <div class="zone-info-compact">
+                                    <div class="zone-name-text">
+                                        ${zone.friendly_name ? `
+                                            <span class="zone-friendly-name">${zone.friendly_name}</span>
+                                            <span class="zone-original-name">${zone.name}</span>
+                                        ` : zone.name}
+                                    </div>
+                                    <div class="zone-led-count">${zone.leds} LEDs</div>
+                                </div>
+                                <div class="zone-actions">
+                                    <input type="color" 
+                                           class="color-picker-mini" 
+                                           value="${zone.color ? rgbToHex(zone.color.r, zone.color.g, zone.color.b) : '#000000'}"
+                                           onclick="event.stopPropagation()"
+                                           onchange="setZoneColorFromPicker(${device.index}, ${originalZoneIndex}, this.value)"
+                                           title="Zone color">
                                     <button class="btn-mini" 
-                                            onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min || 1}, ${zone.leds_max || 300}, ${zone.leds})"
-                                            title="Resize zone (adjust LED count)">
-                                        ⚙️
+                                            onclick="event.stopPropagation(); editZoneName(${device.index}, ${originalZoneIndex}, '${zone.name.replace(/'/g, "\\'")}', '${(zone.friendly_name || '').replace(/'/g, "\\'")}')"
+                                            title="Rename zone">
+                                        ✏️
                                     </button>
-                                ` : ''}
-                                <button class="device-toggle-mini" 
-                                        onclick="event.stopPropagation(); toggleZoneExclusion('${device.name.replace(/'/g, "\\'")}', ${device.index}, ${originalZoneIndex})"
-                                        title="Disable this zone">
-                                    🟢
-                                </button>
+                                    <button class="btn-mini btn-flash" 
+                                            onclick="event.stopPropagation(); flashZone(${device.index}, ${originalZoneIndex})"
+                                            title="Flash zone to identify">
+                                        ⚡
+                                    </button>
+                                    <select class="effect-selector" 
+                                            onclick="event.stopPropagation()"
+                                            onchange="setZoneEffect(${device.index}, ${originalZoneIndex}, this.value)"
+                                            title="Zone effect">
+                                        <option value="static" ${zone.effect === 'static' ? 'selected' : ''}>Static</option>
+                                        <option value="rainbow" ${zone.effect === 'rainbow' ? 'selected' : ''}>🌈 Rainbow</option>
+                                        <option value="breathing" ${zone.effect === 'breathing' ? 'selected' : ''}>💨 Breathing</option>
+                                        <option value="wave" ${zone.effect === 'wave' ? 'selected' : ''}>🌊 Wave</option>
+                                        <option value="cycle" ${zone.effect === 'cycle' ? 'selected' : ''}>🔄 Cycle</option>
+                                    </select>
+                                    ${zone.resizable ? `
+                                        <button class="btn-mini" 
+                                                onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min || 1}, ${zone.leds_max || 300}, ${zone.leds})"
+                                                title="Resize zone (adjust LED count)">
+                                            ⚙️
+                                        </button>
+                                    ` : ''}
+                                    <button class="device-toggle-mini" 
+                                            onclick="event.stopPropagation(); toggleZoneExclusion('${device.name.replace(/'/g, "\\'")}', ${device.index}, ${originalZoneIndex})"
+                                            title="Disable this zone">
+                                        🟢
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Zone Brightness/Saturation Controls -->
+                            <div class="zone-sliders" onclick="event.stopPropagation()">
+                                <div class="zone-slider-control">
+                                    <label>💡</label>
+                                    <input type="range" 
+                                           min="0" 
+                                           max="100" 
+                                           value="${zone.brightness || 100}"
+                                           class="zone-slider"
+                                           oninput="updateZoneSliderValue(${device.index}, ${originalZoneIndex}, 'brightness', this.value)"
+                                           onchange="applyZoneBrightnessSaturation(${device.index}, ${originalZoneIndex})"
+                                           title="Brightness">
+                                    <span class="zone-slider-value" id="zone-brightness-${device.index}-${originalZoneIndex}">${zone.brightness || 100}%</span>
+                                </div>
+                                <div class="zone-slider-control">
+                                    <label>🎨</label>
+                                    <input type="range" 
+                                           min="0" 
+                                           max="100" 
+                                           value="${zone.saturation || 100}"
+                                           class="zone-slider"
+                                           oninput="updateZoneSliderValue(${device.index}, ${originalZoneIndex}, 'saturation', this.value)"
+                                           onchange="applyZoneBrightnessSaturation(${device.index}, ${originalZoneIndex})"
+                                           title="Saturation">
+                                    <span class="zone-slider-value" id="zone-saturation-${device.index}-${originalZoneIndex}">${zone.saturation || 100}%</span>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -252,20 +310,55 @@ function toggleZoneSelection(deviceIndex, zoneIndex) {
 function updateSelectionStatus() {
     const count = selectedItems.length;
     if (count === 0) {
-        updateStatus('No devices or zones selected', 'info');
+        updateSelectionText('No devices or zones selected');
         // Reset sliders to default
         document.getElementById('brightnessSlider').value = 100;
         document.getElementById('saturationSlider').value = 100;
         document.getElementById('brightnessValue').textContent = '100%';
         document.getElementById('saturationValue').textContent = '100%';
     } else {
-        const deviceCount = selectedItems.filter(i => i.type === 'device').length;
-        const zoneCount = selectedItems.filter(i => i.type === 'zone').length;
-        updateStatus(`Selected: ${deviceCount} device(s), ${zoneCount} zone(s)`, 'success');
+        // Count unique devices (either selected directly or have zones selected)
+        const deviceIndices = new Set();
+        selectedItems.forEach(item => {
+            deviceIndices.add(item.deviceIndex);
+        });
+        const deviceCount = deviceIndices.size;
         
-        // If only one zone is selected, load its brightness/saturation
-        if (zoneCount === 1 && deviceCount === 0) {
-            const zoneItem = selectedItems.find(i => i.type === 'zone');
+        // Count total zones and LEDs (excluding disabled zones)
+        let zoneCount = 0;
+        let ledCount = 0;
+        
+        selectedItems.forEach(item => {
+            if (item.type === 'device') {
+                // Add all enabled zones in this device
+                const device = devices[item.deviceIndex];
+                if (device && device.zones) {
+                    device.zones.forEach(zone => {
+                        if (!zone.excluded) {
+                            zoneCount += 1;
+                            ledCount += zone.leds || 0;
+                        }
+                    });
+                }
+            } else if (item.type === 'zone') {
+                // Add individual zone if not disabled
+                const device = devices[item.deviceIndex];
+                const zone = device?.zones[item.zoneIndex];
+                if (zone && !zone.excluded) {
+                    zoneCount += 1;
+                    ledCount += zone.leds || 0;
+                }
+            }
+        });
+        
+        updateSelectionText(`✓ Selected: ${deviceCount} device(s), ${zoneCount} zone(s), ${ledCount} LEDs`);
+        
+        // If only one zone is selected (and no whole devices), load its brightness/saturation
+        const onlyZones = selectedItems.filter(i => i.type === 'zone');
+        const onlyDevices = selectedItems.filter(i => i.type === 'device');
+        
+        if (onlyZones.length === 1 && onlyDevices.length === 0) {
+            const zoneItem = onlyZones[0];
             const device = devices[zoneItem.deviceIndex];
             const zone = device.zones[zoneItem.zoneIndex];
             
@@ -400,6 +493,108 @@ async function toggleZoneExclusion(deviceName, deviceIndex, zoneIndex) {
     }
 }
 
+// Reset all devices to Direct mode and reapply colors
+async function resetDeviceModes() {
+    if (!confirm('Force all devices back to Direct mode and reapply colors?\n\nUse this if devices are stuck in hardware modes (like rainbow).')) {
+        return;
+    }
+    
+    updateStatus('⏳ Resetting devices...', 'info');
+    
+    try {
+        const response = await fetch('/api/reset-modes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus('✓ ' + data.message, 'success');
+            await loadDevices(); // Refresh UI
+        } else {
+            updateStatus('✗ Failed to reset: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to reset devices', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Set zone color from mini color picker
+async function setZoneColorFromPicker(deviceIndex, zoneIndex, hexColor) {
+    try {
+        // Convert hex to RGB
+        const r = parseInt(hexColor.substr(1, 2), 16);
+        const g = parseInt(hexColor.substr(3, 2), 16);
+        const b = parseInt(hexColor.substr(5, 2), 16);
+        
+        const response = await fetch('/api/zone/color', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: deviceIndex,
+                zone: zoneIndex,
+                r: r,
+                g: g,
+                b: b
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus(`✓ Zone color updated to RGB(${r}, ${g}, ${b})`, 'success');
+            await loadDevices(); // Refresh UI
+        } else {
+            updateStatus('✗ Failed to set zone color: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to set zone color', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Update zone slider value display
+function updateZoneSliderValue(deviceIndex, zoneIndex, type, value) {
+    const elementId = `zone-${type}-${deviceIndex}-${zoneIndex}`;
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = value + '%';
+    }
+}
+
+// Apply brightness/saturation to a specific zone
+async function applyZoneBrightnessSaturation(deviceIndex, zoneIndex) {
+    try {
+        const brightnessElement = document.getElementById(`zone-brightness-${deviceIndex}-${zoneIndex}`);
+        const saturationElement = document.getElementById(`zone-saturation-${deviceIndex}-${zoneIndex}`);
+        
+        const brightness = parseInt(brightnessElement.textContent);
+        const saturation = parseInt(saturationElement.textContent);
+        
+        const response = await fetch('/api/zone/brightness', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: deviceIndex,
+                zone: zoneIndex,
+                brightness: brightness,
+                saturation: saturation
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus(`✓ Zone brightness: ${brightness}%, saturation: ${saturation}%`, 'success');
+            await loadDevices(); // Refresh UI
+        } else {
+            updateStatus('✗ Failed to update zone: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to update zone brightness/saturation', 'error');
+        console.error('Error:', error);
+    }
+}
+
 // Setup color control listeners
 function setupColorControls() {
     const colorPicker = document.getElementById('colorPicker');
@@ -435,22 +630,8 @@ function setupColorControls() {
 
 // Setup effect control listeners
 function setupEffectControls() {
-    const rainbowSpeed = document.getElementById('rainbowSpeed');
-    const breatheSpeed = document.getElementById('breatheSpeed');
     const brightnessSlider = document.getElementById('brightnessSlider');
     const saturationSlider = document.getElementById('saturationSlider');
-    
-    if (rainbowSpeed) {
-        rainbowSpeed.addEventListener('input', (e) => {
-            document.getElementById('rainbowSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
-        });
-    }
-    
-    if (breatheSpeed) {
-        breatheSpeed.addEventListener('input', (e) => {
-            document.getElementById('breatheSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
-        });
-    }
     
     if (brightnessSlider) {
         brightnessSlider.addEventListener('input', (e) => {
@@ -650,58 +831,6 @@ function applyPreset(r, g, b) {
     setColor();
 }
 
-// Start rainbow effect
-async function startRainbow() {
-    const duration = parseInt(document.getElementById('rainbowDuration').value);
-    const speed = parseFloat(document.getElementById('rainbowSpeed').value);
-    const device = getSelectedDevice();
-    
-    try {
-        const response = await fetch('/api/effect/rainbow', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ duration, speed, device })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-            updateStatus(`✓ Rainbow effect started (${duration}s)`, 'success');
-        } else {
-            updateStatus('✗ Error: ' + data.error, 'error');
-        }
-    } catch (error) {
-        updateStatus('✗ Failed to start rainbow effect', 'error');
-        console.error('Error:', error);
-    }
-}
-
-// Start breathing effect
-async function startBreathe() {
-    const duration = parseInt(document.getElementById('breatheDuration').value);
-    const speed = parseFloat(document.getElementById('breatheSpeed').value);
-    const color = document.getElementById('breatheColor').value;
-    const rgb = hexToRgb(color);
-    const device = getSelectedDevice();
-    
-    try {
-        const response = await fetch('/api/effect/breathe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ r: rgb.r, g: rgb.g, b: rgb.b, duration, speed, device })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-            updateStatus(`✓ Breathing effect started (${duration}s)`, 'success');
-        } else {
-            updateStatus('✗ Error: ' + data.error, 'error');
-        }
-    } catch (error) {
-        updateStatus('✗ Failed to start breathing effect', 'error');
-        console.error('Error:', error);
-    }
-}
-
 // Resize zone
 async function resizeZone(deviceIndex, zoneIndex, newSize) {
     // If newSize not provided, try to get from input (backward compatibility)
@@ -802,6 +931,134 @@ async function editZoneName(deviceIndex, zoneIndex, originalName, currentFriendl
     }
 }
 
+// Set zone effect
+async function setZoneEffect(deviceIndex, zoneIndex, effectType) {
+    try {
+        // Get effect parameters based on type
+        let effectParams = null;
+        
+        if (effectType === 'breathing') {
+            // Use current color for breathing effect
+            const device = devices[deviceIndex];
+            const zone = device.zones[zoneIndex];
+            // Try to get stored color or use default
+            effectParams = {
+                color: { r: 255, g: 0, b: 0 },  // Default red
+                speed: 1.0
+            };
+        } else if (effectType === 'rainbow' || effectType === 'wave') {
+            effectParams = {
+                speed: 1.0
+            };
+        } else if (effectType === 'cycle') {
+            effectParams = {
+                colors: [
+                    { r: 255, g: 0, b: 0 },    // Red
+                    { r: 0, g: 255, b: 0 },    // Green
+                    { r: 0, g: 0, b: 255 }     // Blue
+                ],
+                speed: 1.0
+            };
+        }
+        
+        const response = await fetch('/api/zone/effect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: deviceIndex,
+                zone: zoneIndex,
+                effect_type: effectType,
+                effect_params: effectParams
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            const effectNames = {
+                'static': 'Static',
+                'rainbow': 'Rainbow 🌈',
+                'breathing': 'Breathing 💨',
+                'wave': 'Wave 🌊',
+                'cycle': 'Cycle 🔄'
+            };
+            updateStatus(`✓ Effect set to ${effectNames[effectType]}`, 'success');
+        } else {
+            updateStatus('✗ Failed to set effect: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to set effect', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Set effect for all zones in a device
+async function setDeviceEffect(deviceIndex, effectType) {
+    if (!effectType) return; // User selected the placeholder option
+    
+    try {
+        const device = devices[deviceIndex];
+        updateStatus(`⏳ Setting ${effectType} effect for all zones in ${device.name}...`, 'info');
+        
+        // Get effect parameters based on type
+        let effectParams = null;
+        
+        if (effectType === 'breathing') {
+            effectParams = {
+                color: { r: 255, g: 0, b: 0 },  // Default red
+                speed: 1.0
+            };
+        } else if (effectType === 'rainbow' || effectType === 'wave') {
+            effectParams = {
+                speed: 1.0
+            };
+        } else if (effectType === 'cycle') {
+            effectParams = {
+                colors: [
+                    { r: 255, g: 0, b: 0 },    // Red
+                    { r: 0, g: 255, b: 0 },    // Green
+                    { r: 0, g: 0, b: 255 }     // Blue
+                ],
+                speed: 1.0
+            };
+        }
+        
+        // Apply effect to all zones
+        for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+            const response = await fetch('/api/zone/effect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    device: deviceIndex,
+                    zone: zoneIndex,
+                    effect_type: effectType,
+                    effect_params: effectParams
+                })
+            });
+            
+            const data = await response.json();
+            if (!data.success) {
+                updateStatus(`✗ Failed to set effect for zone ${zoneIndex}: ${data.error}`, 'error');
+                return;
+            }
+        }
+        
+        const effectNames = {
+            'static': 'Static',
+            'rainbow': 'Rainbow 🌈',
+            'breathing': 'Breathing 💨',
+            'wave': 'Wave 🌊',
+            'cycle': 'Cycle 🔄'
+        };
+        updateStatus(`✓ Set all zones to ${effectNames[effectType]}`, 'success');
+        
+        // Reload devices to update UI
+        await loadDevices();
+    } catch (error) {
+        updateStatus('✗ Failed to set device effect', 'error');
+        console.error('Error:', error);
+    }
+}
+
 // Helper functions
 function getSelectedDevice() {
     const selected = document.querySelector('input[name="targetDevice"]:checked').value;
@@ -841,4 +1098,11 @@ function updateStatus(message, type = '') {
     
     statusText.textContent = message;
     statusBar.className = 'status-bar ' + type;
+}
+
+function updateSelectionText(message) {
+    const selectionText = document.getElementById('selectionText');
+    if (selectionText) {
+        selectionText.textContent = message;
+    }
 }
