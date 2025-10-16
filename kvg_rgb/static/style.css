@@ -272,6 +272,17 @@ header p {
     background: rgba(239, 68, 68, 0.4);
 }
 
+.btn-mini.btn-flash {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.5);
+    font-size: 1rem;
+}
+
+.btn-mini.btn-flash:hover {
+    background: rgba(245, 158, 11, 0.4);
+    transform: scale(1.1);
+}
+
 .device-disabled-msg {
     padding: 1rem;
     text-align: center;

@@ -71,14 +71,29 @@ function displayDevices() {
                                 <span class="checkbox">${isZoneSelected(device.index, originalZoneIndex) ? '☑' : '☐'}</span>
                             </div>
                             <div class="zone-info-compact">
-                                <div class="zone-name-text">${zone.name}</div>
+                                <div class="zone-name-text">
+                                    ${zone.friendly_name ? `
+                                        <span class="zone-friendly-name">${zone.friendly_name}</span>
+                                        <span class="zone-original-name">${zone.name}</span>
+                                    ` : zone.name}
+                                </div>
                                 <div class="zone-led-count">${zone.leds} LEDs</div>
                             </div>
                             <div class="zone-actions">
-                                ${zone.leds_min !== null && zone.leds_max !== null && zone.leds_min !== zone.leds_max ? `
+                                <button class="btn-mini" 
+                                        onclick="event.stopPropagation(); editZoneName(${device.index}, ${originalZoneIndex}, '${zone.name.replace(/'/g, "\\'")}', '${(zone.friendly_name || '').replace(/'/g, "\\'")}')"
+                                        title="Rename zone">
+                                    ✏️
+                                </button>
+                                <button class="btn-mini btn-flash" 
+                                        onclick="event.stopPropagation(); flashZone(${device.index}, ${originalZoneIndex})"
+                                        title="Flash zone to identify">
+                                    ⚡
+                                </button>
+                                ${zone.resizable ? `
                                     <button class="btn-mini" 
-                                            onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min}, ${zone.leds_max}, ${zone.leds})"
-                                            title="Resize zone">
+                                            onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min || 1}, ${zone.leds_max || 300}, ${zone.leds})"
+                                            title="Resize zone (adjust LED count)">
                                         ⚙️
                                     </button>
                                 ` : ''}
@@ -238,10 +253,42 @@ function updateSelectionStatus() {
     const count = selectedItems.length;
     if (count === 0) {
         updateStatus('No devices or zones selected', 'info');
+        // Reset sliders to default
+        document.getElementById('brightnessSlider').value = 100;
+        document.getElementById('saturationSlider').value = 100;
+        document.getElementById('brightnessValue').textContent = '100%';
+        document.getElementById('saturationValue').textContent = '100%';
     } else {
         const deviceCount = selectedItems.filter(i => i.type === 'device').length;
         const zoneCount = selectedItems.filter(i => i.type === 'zone').length;
         updateStatus(`Selected: ${deviceCount} device(s), ${zoneCount} zone(s)`, 'success');
+        
+        // If only one zone is selected, load its brightness/saturation
+        if (zoneCount === 1 && deviceCount === 0) {
+            const zoneItem = selectedItems.find(i => i.type === 'zone');
+            const device = devices[zoneItem.deviceIndex];
+            const zone = device.zones[zoneItem.zoneIndex];
+            
+            if (zone) {
+                document.getElementById('brightnessSlider').value = zone.brightness || 100;
+                document.getElementById('saturationSlider').value = zone.saturation || 100;
+                document.getElementById('brightnessValue').textContent = (zone.brightness || 100) + '%';
+                document.getElementById('saturationValue').textContent = (zone.saturation || 100) + '%';
+            }
+        }
+        // If only one device is selected, load its first zone's brightness/saturation
+        else if (deviceCount === 1 && zoneCount === 0) {
+            const deviceItem = selectedItems.find(i => i.type === 'device');
+            const device = devices[deviceItem.deviceIndex];
+            
+            if (device && device.zones.length > 0) {
+                const firstZone = device.zones[0];
+                document.getElementById('brightnessSlider').value = firstZone.brightness || 100;
+                document.getElementById('saturationSlider').value = firstZone.saturation || 100;
+                document.getElementById('brightnessValue').textContent = (firstZone.brightness || 100) + '%';
+                document.getElementById('saturationValue').textContent = (firstZone.saturation || 100) + '%';
+            }
+        }
     }
 }
 
@@ -293,6 +340,32 @@ async function toggleDevice(deviceName, deviceIndex) {
         }
     } catch (error) {
         updateStatus('✗ Failed to toggle device', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Flash zone to identify it visually
+async function flashZone(deviceIndex, zoneIndex) {
+    try {
+        updateStatus('⚡ Flashing zone...', 'info');
+        const response = await fetch('/api/zone/flash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                device_index: deviceIndex, 
+                zone_index: zoneIndex,
+                flashes: 5  // Flash 5 times (white/black alternating)
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus('✓ Zone flashed!', 'success');
+        } else {
+            updateStatus('✗ Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to flash zone', 'error');
         console.error('Error:', error);
     }
 }
@@ -364,6 +437,8 @@ function setupColorControls() {
 function setupEffectControls() {
     const rainbowSpeed = document.getElementById('rainbowSpeed');
     const breatheSpeed = document.getElementById('breatheSpeed');
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    const saturationSlider = document.getElementById('saturationSlider');
     
     if (rainbowSpeed) {
         rainbowSpeed.addEventListener('input', (e) => {
@@ -376,6 +451,87 @@ function setupEffectControls() {
             document.getElementById('breatheSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
         });
     }
+    
+    if (brightnessSlider) {
+        brightnessSlider.addEventListener('input', (e) => {
+            document.getElementById('brightnessValue').textContent = e.target.value + '%';
+        });
+        brightnessSlider.addEventListener('change', () => {
+            applyBrightnessSaturation();
+        });
+    }
+    
+    if (saturationSlider) {
+        saturationSlider.addEventListener('input', (e) => {
+            document.getElementById('saturationValue').textContent = e.target.value + '%';
+        });
+        saturationSlider.addEventListener('change', () => {
+            applyBrightnessSaturation();
+        });
+    }
+}
+
+// Apply brightness/saturation to selected zones
+async function applyBrightnessSaturation() {
+    if (selectedItems.length === 0) {
+        return; // Silently return if nothing selected
+    }
+    
+    const brightness = parseInt(document.getElementById('brightnessSlider').value);
+    const saturation = parseInt(document.getElementById('saturationSlider').value);
+    
+    for (const item of selectedItems) {
+        if (item.type === 'zone') {
+            // Apply to single zone
+            try {
+                const response = await fetch('/api/zone/brightness', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device: item.deviceIndex,
+                        zone: item.zoneIndex,
+                        brightness: brightness,
+                        saturation: saturation
+                    })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    updateStatus(`✗ Failed to set brightness/saturation: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                updateStatus('✗ Failed to set brightness/saturation', 'error');
+                console.error('Error:', error);
+            }
+        } else if (item.type === 'device') {
+            // Apply to all zones in the device
+            const device = devices[item.deviceIndex];
+            for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+                try {
+                    const response = await fetch('/api/zone/brightness', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            device: item.deviceIndex,
+                            zone: zoneIndex,
+                            brightness: brightness,
+                            saturation: saturation
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (!data.success) {
+                        updateStatus(`✗ Failed to set brightness/saturation: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    updateStatus('✗ Failed to set brightness/saturation', 'error');
+                    console.error('Error:', error);
+                }
+            }
+        }
+    }
+    
+    updateStatus(`✓ Brightness: ${brightness}%, Saturation: ${saturation}%`, 'success');
 }
 
 // Apply color to selected items
@@ -607,6 +763,41 @@ async function setZoneColor(deviceIndex, zoneIndex) {
         }
     } catch (error) {
         updateStatus('✗ Failed to set zone color', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Edit zone name
+async function editZoneName(deviceIndex, zoneIndex, originalName, currentFriendlyName) {
+    const friendlyName = prompt(
+        `Enter a friendly name for zone:\n"${originalName}"\n\n` +
+        `Leave blank to remove custom name and use original.`,
+        currentFriendlyName
+    );
+    
+    // User canceled
+    if (friendlyName === null) return;
+    
+    try {
+        const response = await fetch('/api/zone/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: deviceIndex,
+                zone: zoneIndex,
+                name: friendlyName.trim()
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus(`✓ Zone renamed${friendlyName.trim() ? ' to "' + friendlyName.trim() + '"' : ''}`, 'success');
+            await loadDevices(); // Refresh the UI
+        } else {
+            updateStatus('✗ Failed to rename zone: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to rename zone', 'error');
         console.error('Error:', error);
     }
 }

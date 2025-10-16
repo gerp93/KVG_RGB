@@ -38,10 +38,33 @@ class ColorDatabase:
                     g INTEGER NOT NULL,
                     b INTEGER NOT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    friendly_name TEXT,
                     PRIMARY KEY (device_index, zone_index)
                 )
             ''')
             conn.commit()
+            
+            # Add friendly_name column if it doesn't exist (for existing databases)
+            try:
+                cursor.execute('ALTER TABLE colors ADD COLUMN friendly_name TEXT')
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+            
+            # Add brightness column if it doesn't exist (default 100%)
+            try:
+                cursor.execute('ALTER TABLE colors ADD COLUMN brightness INTEGER DEFAULT 100')
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
+            
+            # Add saturation column if it doesn't exist (default 100%)
+            try:
+                cursor.execute('ALTER TABLE colors ADD COLUMN saturation INTEGER DEFAULT 100')
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
     
     def set_color(self, device_index: int, zone_index: int, r: int, g: int, b: int):
         """
@@ -56,10 +79,28 @@ class ColorDatabase:
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            
+            # Check if row exists to preserve brightness/saturation
             cursor.execute('''
-                INSERT OR REPLACE INTO colors (device_index, zone_index, r, g, b, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ''', (device_index, zone_index, r, g, b))
+                SELECT brightness, saturation FROM colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing row, preserving brightness/saturation
+                brightness, saturation = existing
+                cursor.execute('''
+                    UPDATE colors SET r = ?, g = ?, b = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE device_index = ? AND zone_index = ?
+                ''', (r, g, b, device_index, zone_index))
+            else:
+                # Insert new row with default brightness/saturation
+                cursor.execute('''
+                    INSERT INTO colors (device_index, zone_index, r, g, b, brightness, saturation, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 100, 100, CURRENT_TIMESTAMP)
+                ''', (device_index, zone_index, r, g, b))
+            
             conn.commit()
     
     def get_color(self, device_index: int, zone_index: int) -> Optional[Tuple[int, int, int]]:
@@ -121,3 +162,131 @@ class ColorDatabase:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM colors')
             conn.commit()
+    
+    def set_friendly_name(self, device_index: int, zone_index: int, friendly_name: str):
+        """
+        Set a friendly name for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            friendly_name: User-friendly name for the zone
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Check if row exists
+            cursor.execute('''
+                SELECT r, g, b FROM colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing row
+                cursor.execute('''
+                    UPDATE colors SET friendly_name = ?
+                    WHERE device_index = ? AND zone_index = ?
+                ''', (friendly_name, device_index, zone_index))
+            else:
+                # Insert new row with default black color
+                cursor.execute('''
+                    INSERT INTO colors (device_index, zone_index, r, g, b, friendly_name)
+                    VALUES (?, ?, 0, 0, 0, ?)
+                ''', (device_index, zone_index, friendly_name))
+            
+            conn.commit()
+    
+    def get_friendly_name(self, device_index: int, zone_index: int) -> Optional[str]:
+        """
+        Get the friendly name for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            
+        Returns:
+            Friendly name if set, None otherwise
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT friendly_name FROM colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            result = cursor.fetchone()
+            return result[0] if result and result[0] else None
+    
+    def get_all_friendly_names(self) -> List[Tuple[int, int, str]]:
+        """
+        Get all friendly names.
+        
+        Returns:
+            List of tuples (device_index, zone_index, friendly_name)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT device_index, zone_index, friendly_name FROM colors
+                WHERE friendly_name IS NOT NULL AND friendly_name != ''
+            ''')
+            return cursor.fetchall()
+    
+    def set_brightness_saturation(self, device_index: int, zone_index: int, brightness: int, saturation: int):
+        """
+        Set brightness and saturation for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            brightness: Brightness percentage (0-100)
+            saturation: Saturation percentage (0-100)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Check if row exists
+            cursor.execute('''
+                SELECT r, g, b FROM colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing row
+                cursor.execute('''
+                    UPDATE colors SET brightness = ?, saturation = ?
+                    WHERE device_index = ? AND zone_index = ?
+                ''', (brightness, saturation, device_index, zone_index))
+            else:
+                # Insert new row with default black color
+                cursor.execute('''
+                    INSERT INTO colors (device_index, zone_index, r, g, b, brightness, saturation)
+                    VALUES (?, ?, 0, 0, 0, ?, ?)
+                ''', (device_index, zone_index, brightness, saturation))
+            
+            conn.commit()
+    
+    def get_brightness_saturation(self, device_index: int, zone_index: int) -> Tuple[int, int]:
+        """
+        Get brightness and saturation for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            
+        Returns:
+            Tuple of (brightness, saturation) percentages, defaults to (100, 100)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT brightness, saturation FROM colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            result = cursor.fetchone()
+            
+            if result and result[0] is not None and result[1] is not None:
+                return (result[0], result[1])
+            else:
+                return (100, 100)  # Default to 100% brightness and saturation

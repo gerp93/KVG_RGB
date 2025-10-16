@@ -139,6 +139,54 @@ def create_app():
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    @app.route('/api/zone/flash', methods=['POST'])
+    def flash_zone():
+        """Flash a zone to identify it visually"""
+        try:
+            data = request.json
+            device_index = data.get('device_index')
+            zone_index = data.get('zone_index')
+            duration = data.get('duration', 2)  # Default 2 seconds
+            
+            if device_index is None or zone_index is None:
+                return jsonify({'success': False, 'error': 'Missing device_index or zone_index'}), 400
+            
+            # Flash in background thread
+            def run_flash():
+                import time
+                from openrgb.utils import RGBColor
+                
+                controller = get_controller()
+                device = controller.client.devices[device_index]
+                
+                # Save current color
+                old_colors = []
+                zone = device.zones[zone_index]
+                for led in zone.leds:
+                    old_colors.append(device.colors[led.id])
+                
+                # Flash white
+                white = RGBColor(255, 255, 255)
+                zone.set_color(white)
+                device.update()
+                
+                time.sleep(duration)
+                
+                # Restore original colors
+                for i, led in enumerate(zone.leds):
+                    if i < len(old_colors):
+                        device.leds[led.id].set_color(old_colors[i])
+                device.update()
+            
+            thread = threading.Thread(target=run_flash, daemon=True)
+            thread.start()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     @app.route('/api/effect/rainbow', methods=['POST'])
     def rainbow_effect():
         """Start rainbow effect"""

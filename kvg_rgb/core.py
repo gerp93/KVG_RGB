@@ -9,8 +9,41 @@ import time
 import math
 import sys
 import logging
+import colorsys
 
 logger = logging.getLogger(__name__)
+
+
+def apply_brightness_saturation(r, g, b, brightness=100, saturation=100):
+    """
+    Apply brightness and saturation adjustments to RGB color.
+    
+    Args:
+        r, g, b: RGB values (0-255)
+        brightness: Brightness percentage (0-100)
+        saturation: Saturation percentage (0-100)
+        
+    Returns:
+        Tuple of adjusted (r, g, b) values
+    """
+    # Convert RGB to HSV
+    r_norm, g_norm, b_norm = r / 255.0, g / 255.0, b / 255.0
+    h, s, v = colorsys.rgb_to_hsv(r_norm, g_norm, b_norm)
+    
+    # Apply saturation (0-100% -> 0.0-1.0)
+    s = s * (saturation / 100.0)
+    
+    # Apply brightness (0-100% -> 0.0-1.0)
+    v = v * (brightness / 100.0)
+    
+    # Convert back to RGB
+    r_adj, g_adj, b_adj = colorsys.hsv_to_rgb(h, s, v)
+    
+    return (
+        int(r_adj * 255),
+        int(g_adj * 255),
+        int(b_adj * 255)
+    )
 
 
 class RGBController:
@@ -57,8 +90,6 @@ class RGBController:
             r, g, b: RGB values (0-255)
             device_index: Specific device index, or None for all devices
         """
-        color = RGBColor(r, g, b)
-        
         if device_index is not None:
             device = self.client.devices[device_index]
             # Check if device is excluded
@@ -73,24 +104,61 @@ class RGBController:
                 logger.warning(f"   ✓ Zone {zone_idx} → RGB({r}, {g}, {b})")
             # Switch to Direct mode if available
             self._set_direct_mode(device)
-            # Set color for all LEDs
-            device.set_color(color)
+            # Re-fetch device after mode change
+            device = self.client.devices[device_index]
+            
+            # Apply brightness/saturation per zone
+            logger.warning(f"   Applying brightness/saturation to zones:")
+            for zone_idx in range(len(device.zones)):
+                # Get brightness and saturation for this zone
+                brightness, saturation = self.db.get_brightness_saturation(device_index, zone_idx)
+                
+                # Apply brightness and saturation adjustments
+                adj_r, adj_g, adj_b = apply_brightness_saturation(r, g, b, brightness, saturation)
+                
+                logger.warning(f"   Zone {zone_idx}: RGB({r}, {g}, {b}) → RGB({adj_r}, {adj_g}, {adj_b}) [B:{brightness}% S:{saturation}%]")
+                
+                # Set the zone color with adjustments
+                zone_color = RGBColor(adj_r, adj_g, adj_b)
+                device.zones[zone_idx].set_color(zone_color)
+            
             # Force update to hardware
             device.update()
             logger.warning(f"   ✅ Device updated\n")
         else:
             # Get only non-excluded devices
-            devices = self.get_devices(include_excluded=False)
-            for idx, device in enumerate(devices):
+            devices = list(enumerate(self.get_devices(include_excluded=False)))
+            for idx, device in devices:
+                logger.warning(f"\n🎨 Setting device color for {device.name}")
+                logger.warning(f"   Color: RGB({r}, {g}, {b})")
                 # Save device color to database for EVERY zone
+                logger.warning(f"   Saving to DB for {len(device.zones)} zones:")
                 for zone_idx in range(len(device.zones)):
                     self.db.set_color(idx, zone_idx, r, g, b)
+                    logger.warning(f"   ✓ Zone {zone_idx} → RGB({r}, {g}, {b})")
                 # Switch to Direct mode if available
                 self._set_direct_mode(device)
-                # Set color for all LEDs
-                device.set_color(color)
+                # Re-fetch device after mode change
+                device = self.client.devices[idx]
+                
+                # Apply brightness/saturation per zone
+                logger.warning(f"   Applying brightness/saturation to zones:")
+                for zone_idx in range(len(device.zones)):
+                    # Get brightness and saturation for this zone
+                    brightness, saturation = self.db.get_brightness_saturation(idx, zone_idx)
+                    
+                    # Apply brightness and saturation adjustments
+                    adj_r, adj_g, adj_b = apply_brightness_saturation(r, g, b, brightness, saturation)
+                    
+                    logger.warning(f"   Zone {zone_idx}: RGB({r}, {g}, {b}) → RGB({adj_r}, {adj_g}, {adj_b}) [B:{brightness}% S:{saturation}%]")
+                    
+                    # Set the zone color with adjustments
+                    zone_color = RGBColor(adj_r, adj_g, adj_b)
+                    device.zones[zone_idx].set_color(zone_color)
+                
                 # Force update to hardware
                 device.update()
+                logger.warning(f"   ✅ Device updated\n")
     
     def set_zone_color(self, device_index, zone_index, r, g, b):
         """
@@ -110,6 +178,9 @@ class RGBController:
         # Switch to Direct mode
         self._set_direct_mode(device)
         
+        # Re-fetch device after mode change to get updated state
+        device = self.client.devices[device_index]
+        
         # Get the zone
         if zone_index >= len(device.zones):
             raise ValueError(f"Zone {zone_index} does not exist on {device.name}")
@@ -125,11 +196,17 @@ class RGBController:
         # Load all colors for this device from database
         device_colors = self.db.get_device_colors(device_index)
         
-        # Build a dict of zone colors from database
+        # Build a dict of zone colors from database with brightness/saturation applied
         zone_colors = {}
         for z_idx, db_r, db_g, db_b in device_colors:
-            zone_colors[z_idx] = RGBColor(db_r, db_g, db_b)
-            logger.warning(f"   DB: Zone {z_idx} → RGB({db_r}, {db_g}, {db_b})")
+            # Get brightness and saturation for this zone
+            brightness, saturation = self.db.get_brightness_saturation(device_index, z_idx)
+            
+            # Apply brightness and saturation adjustments
+            adj_r, adj_g, adj_b = apply_brightness_saturation(db_r, db_g, db_b, brightness, saturation)
+            
+            zone_colors[z_idx] = RGBColor(adj_r, adj_g, adj_b)
+            logger.warning(f"   DB: Zone {z_idx} → RGB({db_r}, {db_g}, {db_b}) → Adjusted RGB({adj_r}, {adj_g}, {adj_b}) [B:{brightness}% S:{saturation}%]")
         
         # Apply color to each zone
         logger.warning(f"\n   Applying colors to {len(device.zones)} zones:")
@@ -145,15 +222,37 @@ class RGBController:
         logger.warning(f"   ✅ Device updated\n")
     
     def _set_direct_mode(self, device):
-        """Helper to set device to Direct mode for SDK control"""
+        """Helper to set device to Direct mode (or Custom/Static) for SDK control"""
         try:
-            # Look for 'Direct' mode
-            for mode in device.modes:
-                if 'direct' in mode.name.lower():
-                    device.set_mode(mode)
+            # Check current mode first
+            current_mode = device.modes[device.active_mode] if device.active_mode < len(device.modes) else None
+            
+            # Look for modes in order of preference: Direct > Custom > Static
+            mode_preferences = ['direct', 'custom', 'static']
+            
+            for preferred_mode in mode_preferences:
+                # If already in a preferred mode, don't switch
+                if current_mode and preferred_mode in current_mode.name.lower():
+                    logger.warning(f"   ✓ Already in {current_mode.name} mode")
                     return
-        except Exception:
-            # If mode switching fails, continue anyway
+                
+                # Otherwise try to find and set the mode
+                for mode in device.modes:
+                    if preferred_mode in mode.name.lower():
+                        logger.warning(f"   → Switching to {mode.name} mode...")
+                        device.set_mode(mode)
+                        # Small delay to let the mode switch settle
+                        import time
+                        time.sleep(0.2)
+                        logger.warning(f"   ✓ Set to {mode.name} mode")
+                        return
+            
+            # If no preferred mode found, just log current mode
+            if current_mode:
+                logger.warning(f"   ℹ️  Using current mode: {current_mode.name}")
+        except Exception as e:
+            # If mode switching fails, log but continue anyway
+            logger.warning(f"   ⚠️  Could not set mode: {e}")
             pass
     
     def rainbow_effect(self, duration=60, speed=1.0, device_index=None):
