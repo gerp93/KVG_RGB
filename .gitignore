@@ -31,3 +31,10 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test and diagnostic scripts
+test_*.py
+diagnose.py
+rgb_utils.py
+zone_manager.py
+main.py
