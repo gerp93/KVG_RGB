@@ -39,8 +39,14 @@ Edit `CHANGELOG.md` and move items from `[Unreleased]` to a new version section:
 
 ### Step 3: Run Release Script
 
+```bash
+python release.py
+```
+
+Or on Windows:
 ```powershell
-.\release.ps1
+python release.py
+# OR keep using: .\release.ps1
 ```
 
 This automatically:
@@ -185,19 +191,20 @@ kvg-rgb --help
 
 ## 📝 Quick Reference
 
-```powershell
-# Full release process
-# 1. Edit: kvg_rgb\__init__.py (update version)
+```bash
+# Full release process (works on Windows/Linux/macOS)
+# 1. Edit: kvg_rgb/__init__.py (update version)
 # 2. Edit: CHANGELOG.md (document changes)
 # 3. Build:
-.\release.ps1
+python release.py
 
 # 4. Test:
-.\dist\kvg-rgb.exe --help
+./dist/kvg-rgb --help         # Linux/macOS
+.\dist\kvg-rgb.exe --help     # Windows
 
 # 5. Distribute:
-# - Upload dist\kvg-rgb.exe to GitHub releases
-# - Or: twine upload dist\kvg_rgb-*
+# - Upload dist/kvg-rgb.exe (or kvg-rgb) to GitHub releases
+# - Or: twine upload dist/*
 ```
 
 ---
