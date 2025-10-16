@@ -4,8 +4,13 @@ Core RGB control functionality (can be used by CLI or GUI)
 from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor
 from .config import get_config
+from .database import ColorDatabase
 import time
 import math
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RGBController:
@@ -15,8 +20,8 @@ class RGBController:
         """Initialize connection to OpenRGB"""
         self.client = OpenRGBClient(name="KVG_RGB", address=host, port=port)
         self.config = get_config()
-        # Track zone colors to preserve them across updates
-        self._device_zone_colors = {}  # {device_index: {zone_index: RGBColor}}
+        # Use database for persistent color storage
+        self.db = ColorDatabase()
         
     def disconnect(self):
         """Disconnect from OpenRGB"""
@@ -59,22 +64,27 @@ class RGBController:
             # Check if device is excluded
             if self.config.is_device_excluded(device.name):
                 return  # Skip excluded device
-            # Clear zone color tracking when setting entire device
-            if device_index in self._device_zone_colors:
-                del self._device_zone_colors[device_index]
+            logger.warning(f"\n🎨 Setting device color for {device.name}")
+            logger.warning(f"   Color: RGB({r}, {g}, {b})")
+            # Save device color to database for EVERY zone
+            logger.warning(f"   Saving to DB for {len(device.zones)} zones:")
+            for zone_idx in range(len(device.zones)):
+                self.db.set_color(device_index, zone_idx, r, g, b)
+                logger.warning(f"   ✓ Zone {zone_idx} → RGB({r}, {g}, {b})")
             # Switch to Direct mode if available
             self._set_direct_mode(device)
             # Set color for all LEDs
             device.set_color(color)
             # Force update to hardware
             device.update()
+            logger.warning(f"   ✅ Device updated\n")
         else:
             # Get only non-excluded devices
             devices = self.get_devices(include_excluded=False)
             for idx, device in enumerate(devices):
-                # Clear zone color tracking
-                if idx in self._device_zone_colors:
-                    del self._device_zone_colors[idx]
+                # Save device color to database for EVERY zone
+                for zone_idx in range(len(device.zones)):
+                    self.db.set_color(idx, zone_idx, r, g, b)
                 # Switch to Direct mode if available
                 self._set_direct_mode(device)
                 # Set color for all LEDs
@@ -107,25 +117,32 @@ class RGBController:
         zone = device.zones[zone_index]
         color = RGBColor(r, g, b)
         
-        # Initialize device in zone colors tracking if not present
-        if device_index not in self._device_zone_colors:
-            self._device_zone_colors[device_index] = {}
+        # Save this zone's color to database
+        self.db.set_color(device_index, zone_index, r, g, b)
+        logger.warning(f"\n🎨 Setting zone color for {device.name}")
+        logger.warning(f"   Zone {zone_index} → RGB({r}, {g}, {b})")
         
-        # Store this zone's color
-        self._device_zone_colors[device_index][zone_index] = color
+        # Load all colors for this device from database
+        device_colors = self.db.get_device_colors(device_index)
         
-        # Apply ALL tracked zone colors for this device to preserve colors
-        for tracked_zone_index, tracked_color in self._device_zone_colors[device_index].items():
-            if tracked_zone_index < len(device.zones):
-                tracked_zone = device.zones[tracked_zone_index]
-                # Set color for each LED in the tracked zone
-                for led in tracked_zone.leds:
-                    try:
-                        device.leds[led.id].set_color(tracked_color)
-                    except Exception as e:
-                        print(f"Warning: Could not set LED {led.id}: {e}")
+        # Build a dict of zone colors from database
+        zone_colors = {}
+        for z_idx, db_r, db_g, db_b in device_colors:
+            zone_colors[z_idx] = RGBColor(db_r, db_g, db_b)
+            logger.warning(f"   DB: Zone {z_idx} → RGB({db_r}, {db_g}, {db_b})")
+        
+        # Apply color to each zone
+        logger.warning(f"\n   Applying colors to {len(device.zones)} zones:")
+        for z_idx in range(len(device.zones)):
+            if z_idx in zone_colors:
+                zone_color = zone_colors[z_idx]
+                device.zones[z_idx].set_color(zone_color)
+                logger.warning(f"   ✓ Zone {z_idx} set to RGB({zone_color.red}, {zone_color.green}, {zone_color.blue})")
+            else:
+                logger.warning(f"   ⚠ Zone {z_idx} - No color in database (skipped)")
         
         device.update()
+        logger.warning(f"   ✅ Device updated\n")
     
     def _set_direct_mode(self, device):
         """Helper to set device to Direct mode for SDK control"""
