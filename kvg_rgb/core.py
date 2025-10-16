@@ -3,6 +3,7 @@ Core RGB control functionality (can be used by CLI or GUI)
 """
 from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor
+from .config import get_config
 import time
 import math
 
@@ -13,6 +14,7 @@ class RGBController:
     def __init__(self, host='localhost', port=6742):
         """Initialize connection to OpenRGB"""
         self.client = OpenRGBClient(name="KVG_RGB", address=host, port=port)
+        self.config = get_config()
         
     def disconnect(self):
         """Disconnect from OpenRGB"""
@@ -24,8 +26,20 @@ class RGBController:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disconnect()
     
-    def get_devices(self):
-        """Get list of all RGB devices"""
+    def get_devices(self, include_excluded=False):
+        """
+        Get list of RGB devices
+        
+        Args:
+            include_excluded: If True, return all devices. If False, filter out excluded ones.
+        """
+        devices = self.client.devices
+        if include_excluded:
+            return devices
+        return [d for d in devices if not self.config.is_device_excluded(d.name)]
+    
+    def get_all_devices(self):
+        """Get all devices including excluded ones (for management UI)"""
         return self.client.devices
     
     def set_color(self, r, g, b, device_index=None):
@@ -39,10 +53,38 @@ class RGBController:
         color = RGBColor(r, g, b)
         
         if device_index is not None:
-            self.client.devices[device_index].set_color(color)
+            device = self.client.devices[device_index]
+            # Check if device is excluded
+            if self.config.is_device_excluded(device.name):
+                return  # Skip excluded device
+            # Switch to Direct mode if available
+            self._set_direct_mode(device)
+            # Set color for all LEDs
+            device.set_color(color)
+            # Force update to hardware
+            device.update()
         else:
-            for device in self.client.devices:
+            # Get only non-excluded devices
+            devices = self.get_devices(include_excluded=False)
+            for device in devices:
+                # Switch to Direct mode if available
+                self._set_direct_mode(device)
+                # Set color for all LEDs
                 device.set_color(color)
+                # Force update to hardware
+                device.update()
+    
+    def _set_direct_mode(self, device):
+        """Helper to set device to Direct mode for SDK control"""
+        try:
+            # Look for 'Direct' mode
+            for mode in device.modes:
+                if 'direct' in mode.name.lower():
+                    device.set_mode(mode)
+                    return
+        except Exception:
+            # If mode switching fails, continue anyway
+            pass
     
     def rainbow_effect(self, duration=60, speed=1.0, device_index=None):
         """
@@ -53,7 +95,20 @@ class RGBController:
             speed: Speed multiplier
             device_index: Specific device or None for all
         """
-        devices = [self.client.devices[device_index]] if device_index is not None else self.client.devices
+        if device_index is not None:
+            device = self.client.devices[device_index]
+            # Check if device is excluded
+            if self.config.is_device_excluded(device.name):
+                return  # Skip excluded device
+            devices = [device]
+        else:
+            # Get only non-excluded devices
+            devices = self.get_devices(include_excluded=False)
+        
+        # Set all devices to Direct mode
+        for device in devices:
+            self._set_direct_mode(device)
+        
         start_time = time.time()
         
         while time.time() - start_time < duration:
@@ -82,6 +137,7 @@ class RGBController:
             
             for device in devices:
                 device.set_color(color)
+                device.update()
             
             time.sleep(0.05)
     
@@ -95,7 +151,20 @@ class RGBController:
             speed: Speed multiplier
             device_index: Specific device or None for all
         """
-        devices = [self.client.devices[device_index]] if device_index is not None else self.client.devices
+        if device_index is not None:
+            device = self.client.devices[device_index]
+            # Check if device is excluded
+            if self.config.is_device_excluded(device.name):
+                return  # Skip excluded device
+            devices = [device]
+        else:
+            # Get only non-excluded devices
+            devices = self.get_devices(include_excluded=False)
+        
+        # Set all devices to Direct mode
+        for device in devices:
+            self._set_direct_mode(device)
+        
         start_time = time.time()
         
         while time.time() - start_time < duration:
@@ -110,5 +179,6 @@ class RGBController:
             
             for device in devices:
                 device.set_color(color)
+                device.update()
             
             time.sleep(0.05)

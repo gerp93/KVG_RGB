@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KVG RGB Controller</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌈 KVG RGB Controller</h1>
+            <p>Control your RGB devices from your browser</p>
+        </header>
+
+        <div class="status-bar" id="statusBar">
+            <span id="statusText">Loading devices...</span>
+        </div>
+
+        <!-- Device Selection -->
+        <section class="card">
+            <h2>🖥️ Devices</h2>
+            <p class="device-info">💡 Click the toggle to enable/disable RGB control for each device</p>
+            <div id="deviceList" class="device-list">
+                <p class="loading">Loading devices...</p>
+            </div>
+            <div class="device-selector">
+                <label>
+                    <input type="radio" name="targetDevice" value="all" checked>
+                    All Active Devices
+                </label>
+            </div>
+        </section>
+
+        <!-- Color Control -->
+        <section class="card">
+            <h2>🎨 Color Control</h2>
+            <div class="color-controls">
+                <div class="color-picker-wrapper">
+                    <input type="color" id="colorPicker" value="#FF0000">
+                    <div class="color-display" id="colorDisplay"></div>
+                </div>
+                <div class="rgb-inputs">
+                    <div class="input-group">
+                        <label>R: <span id="rValue">255</span></label>
+                        <input type="range" id="rSlider" min="0" max="255" value="255">
+                    </div>
+                    <div class="input-group">
+                        <label>G: <span id="gValue">0</span></label>
+                        <input type="range" id="gSlider" min="0" max="255" value="0">
+                    </div>
+                    <div class="input-group">
+                        <label>B: <span id="bValue">0</span></label>
+                        <input type="range" id="bSlider" min="0" max="255" value="0">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="setColor()">Apply Color</button>
+            </div>
+            <div class="preset-colors">
+                <span class="preset-label">Quick Colors:</span>
+                <button class="color-preset" style="background: #FF0000" onclick="applyPreset(255,0,0)" title="Red"></button>
+                <button class="color-preset" style="background: #00FF00" onclick="applyPreset(0,255,0)" title="Green"></button>
+                <button class="color-preset" style="background: #0000FF" onclick="applyPreset(0,0,255)" title="Blue"></button>
+                <button class="color-preset" style="background: #FFFF00" onclick="applyPreset(255,255,0)" title="Yellow"></button>
+                <button class="color-preset" style="background: #FF00FF" onclick="applyPreset(255,0,255)" title="Magenta"></button>
+                <button class="color-preset" style="background: #00FFFF" onclick="applyPreset(0,255,255)" title="Cyan"></button>
+                <button class="color-preset" style="background: #FFFFFF" onclick="applyPreset(255,255,255)" title="White"></button>
+                <button class="color-preset" style="background: #FFA500" onclick="applyPreset(255,165,0)" title="Orange"></button>
+                <button class="color-preset" style="background: #800080" onclick="applyPreset(128,0,128)" title="Purple"></button>
+            </div>
+        </section>
+
+        <!-- Effects -->
+        <section class="card">
+            <h2>✨ Effects</h2>
+            <div class="effects-grid">
+                <div class="effect-card">
+                    <h3>🌈 Rainbow</h3>
+                    <p>Cycling rainbow effect</p>
+                    <div class="effect-controls">
+                        <div class="input-group">
+                            <label>Duration (seconds):</label>
+                            <input type="number" id="rainbowDuration" value="30" min="1" max="3600">
+                        </div>
+                        <div class="input-group">
+                            <label>Speed:</label>
+                            <input type="range" id="rainbowSpeed" min="0.1" max="5" step="0.1" value="1">
+                            <span id="rainbowSpeedValue">1.0x</span>
+                        </div>
+                        <button class="btn btn-effect" onclick="startRainbow()">Start Rainbow</button>
+                    </div>
+                </div>
+
+                <div class="effect-card">
+                    <h3>💨 Breathing</h3>
+                    <p>Pulsing fade effect</p>
+                    <div class="effect-controls">
+                        <div class="input-group">
+                            <label>Duration (seconds):</label>
+                            <input type="number" id="breatheDuration" value="30" min="1" max="3600">
+                        </div>
+                        <div class="input-group">
+                            <label>Speed:</label>
+                            <input type="range" id="breatheSpeed" min="0.1" max="5" step="0.1" value="1">
+                            <span id="breatheSpeedValue">1.0x</span>
+                        </div>
+                        <div class="input-group">
+                            <label>Color:</label>
+                            <input type="color" id="breatheColor" value="#00FFFF">
+                        </div>
+                        <button class="btn btn-effect" onclick="startBreathe()">Start Breathing</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Zone Management -->
+        <section class="card">
+            <h2>🎛️ Zone Management</h2>
+            <p class="zone-info">Manage addressable RGB zones on compatible devices (e.g., motherboard RGB headers)</p>
+            <div id="zoneList" class="zone-list">
+                <p class="info">Select a device above to view its zones</p>
+            </div>
+        </section>
+
+        <footer>
+            <p>KVG RGB Controller | Made with ❤️ and Python</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

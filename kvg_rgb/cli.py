@@ -202,6 +202,76 @@ def breathe_command(args):
         sys.exit(1)
 
 
+def exclude_device_command(args):
+    """Exclude a device from RGB control"""
+    try:
+        from kvg_rgb.config import get_config
+        with RGBController() as controller:
+            devices = controller.get_all_devices()
+            if args.device < 0 or args.device >= len(devices):
+                print(f"Error: Invalid device index {args.device}")
+                print(f"Valid range: 0-{len(devices)-1}")
+                sys.exit(1)
+            
+            device = devices[args.device]
+            config = get_config()
+            config.exclude_device(device.name)
+            print(f"✓ Excluded device: {device.name}")
+            print(f"  This device will no longer respond to RGB commands")
+            
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+
+def include_device_command(args):
+    """Include a previously excluded device"""
+    try:
+        from kvg_rgb.config import get_config
+        with RGBController() as controller:
+            devices = controller.get_all_devices()
+            if args.device < 0 or args.device >= len(devices):
+                print(f"Error: Invalid device index {args.device}")
+                print(f"Valid range: 0-{len(devices)-1}")
+                sys.exit(1)
+            
+            device = devices[args.device]
+            config = get_config()
+            if config.include_device(device.name):
+                print(f"✓ Included device: {device.name}")
+                print(f"  This device will now respond to RGB commands")
+            else:
+                print(f"Device '{device.name}' was not excluded")
+            
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+
+def list_excluded_devices():
+    """List all excluded devices"""
+    try:
+        from kvg_rgb.config import get_config
+        config = get_config()
+        excluded = config.get_excluded_devices()
+        
+        if not excluded:
+            print("\nNo devices are currently excluded")
+            print("All devices will respond to RGB commands")
+        else:
+            print(f"\n{'='*60}")
+            print(f"  Excluded Devices ({len(excluded)})")
+            print(f"{'='*60}\n")
+            for device_name in excluded:
+                print(f"  ✗ {device_name}")
+            print(f"\nThese devices will NOT respond to RGB commands")
+            print(f"Use 'kvg-rgb include <device_index>' to re-enable them\n")
+            
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
@@ -216,6 +286,10 @@ Examples:
   kvg-rgb resize 1 3 35                     Resize device 1, zone 3 to 35 LEDs
   kvg-rgb rainbow --duration 30             30 second rainbow effect
   kvg-rgb breathe 0 150 255 --speed 2       Fast blue breathing effect
+  kvg-rgb web                               Start web interface
+  kvg-rgb exclude 2                         Exclude device 2 from RGB control
+  kvg-rgb include 2                         Re-enable device 2
+  kvg-rgb excluded                          List excluded devices
         """
     )
     
@@ -255,6 +329,21 @@ Examples:
     breathe_parser.add_argument('--speed', type=float, default=1.0, help='Speed multiplier (default: 1.0)')
     breathe_parser.add_argument('--device', type=int, default=None, help='Specific device index (default: all)')
     
+    # Web command
+    web_parser = subparsers.add_parser('web', help='Start web interface')
+    web_parser.add_argument('--host', type=str, default='127.0.0.1', help='Host address (default: 127.0.0.1)')
+    web_parser.add_argument('--port', type=int, default=5000, help='Port number (default: 5000)')
+    web_parser.add_argument('--no-browser', action='store_true', help='Don\'t open browser automatically')
+    
+    # Exclude/Include commands
+    exclude_parser = subparsers.add_parser('exclude', help='Exclude a device from RGB control')
+    exclude_parser.add_argument('device', type=int, help='Device index to exclude')
+    
+    include_parser = subparsers.add_parser('include', help='Include a previously excluded device')
+    include_parser.add_argument('device', type=int, help='Device index to include')
+    
+    subparsers.add_parser('excluded', help='List excluded devices')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -274,6 +363,19 @@ Examples:
         rainbow_command(args)
     elif args.command == 'breathe':
         breathe_command(args)
+    elif args.command == 'web':
+        from kvg_rgb.web import run_web_server
+        run_web_server(
+            host=args.host,
+            port=args.port,
+            open_browser_window=not args.no_browser
+        )
+    elif args.command == 'exclude':
+        exclude_device_command(args)
+    elif args.command == 'include':
+        include_device_command(args)
+    elif args.command == 'excluded':
+        list_excluded_devices()
 
 
 if __name__ == "__main__":

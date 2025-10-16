@@ -6,6 +6,7 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 - 🎨 Control all your RGB devices from the command line
 - 🌈 Built-in effects (rainbow, breathing)
+- 🌐 **Web UI** - Modern browser-based control interface
 - 🔧 Extensible architecture for future GUI development
 - 📦 Can be packaged as standalone executable for sharing
 - 🎛️ Zone management - resize addressable RGB zones on compatible devices
@@ -72,6 +73,31 @@ kvg-rgb color 255 0 0
 - `build_exe.py` - Script to build standalone executable
 
 ## Usage
+
+### Web Interface (Recommended)
+
+The easiest way to control your RGB devices is through the web interface:
+
+```powershell
+# Start the web server (browser opens automatically)
+kvg-rgb web
+
+# Customize host/port if needed
+kvg-rgb web --port 8080
+
+# Start without auto-opening browser
+kvg-rgb web --no-browser
+```
+
+**Features of the Web UI:**
+- 🎨 **Color Picker** - Visual color selection with RGB sliders
+- 🎯 **Quick Presets** - One-click common colors
+- ✨ **Effects** - Rainbow and breathing effects with speed control
+- 🎛️ **Zone Management** - Resize addressable RGB zones
+- 🖥️ **Device Selection** - Control all devices or specific ones
+- 📱 **Responsive** - Works on desktop, tablet, and mobile browsers
+
+The web interface runs **locally on your machine** at `http://localhost:5000`. No internet connection needed!
 
 ### Command-Line Interface
 

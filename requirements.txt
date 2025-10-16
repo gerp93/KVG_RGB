@@ -1,2 +1,5 @@
 # OpenRGB Python SDK
 openrgb-python>=0.2.15
+
+# Web interface
+flask>=3.0.0

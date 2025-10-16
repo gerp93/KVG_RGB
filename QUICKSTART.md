@@ -1,5 +1,30 @@
 # KVG RGB Controller - Quick Reference
 
+## Getting Started (For End Users)
+
+### 1. **Easiest: Use the Web Interface**
+```powershell
+# In your terminal:
+kvg-rgb web
+```
+✅ Browser opens automatically at http://localhost:5000  
+✅ Use the visual color picker and effect controls  
+✅ No command-line knowledge needed!
+
+### 2. **Alternative: Command Line**
+```powershell
+# List your RGB devices
+kvg-rgb list
+
+# Set all devices to red
+kvg-rgb color 255 0 0
+
+# Run rainbow effect
+kvg-rgb rainbow
+```
+
+---
+
 ## Project Structure
 ```
 KVG_RGB/
@@ -41,8 +66,17 @@ pip install -e .
 ## CLI Examples
 
 ```powershell
+# Web interface (easiest!)
+kvg-rgb web
+
 # List devices
 kvg-rgb list
+
+# View zones
+kvg-rgb zones
+
+# Resize a zone (device 1, zone 3, to 35 LEDs)
+kvg-rgb resize 1 3 35
 
 # Set colors
 kvg-rgb color 255 0 0              # All devices red

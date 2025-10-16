@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""
+Flask web interface for KVG RGB Controller
+Provides a local web UI for controlling RGB devices
+"""
+from flask import Flask, render_template, jsonify, request
+from .core import RGBController
+import webbrowser
+import threading
+import time
+
+
+def create_app():
+    """Create and configure the Flask app"""
+    app = Flask(__name__)
+    
+    @app.route('/')
+    def index():
+        """Main control page"""
+        return render_template('index.html')
+    
+    @app.route('/api/devices')
+    def get_devices():
+        """Get all RGB devices with their details"""
+        try:
+            with RGBController() as controller:
+                all_devices = controller.get_all_devices()
+                device_list = []
+                
+                for idx, device in enumerate(all_devices):
+                    zones = []
+                    if device.zones:
+                        for zone_idx, zone in enumerate(device.zones):
+                            zones.append({
+                                'index': zone_idx,
+                                'name': zone.name,
+                                'type': zone.type,
+                                'leds': len(zone.leds),
+                                'leds_min': getattr(zone, 'leds_min', None),
+                                'leds_max': getattr(zone, 'leds_max', None)
+                            })
+                    
+                    device_list.append({
+                        'index': idx,
+                        'name': device.name,
+                        'type': device.type,
+                        'leds': len(device.leds),
+                        'zones': zones,
+                        'excluded': controller.config.is_device_excluded(device.name)
+                    })
+                
+                return jsonify({'success': True, 'devices': device_list})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/device/toggle', methods=['POST'])
+    def toggle_device():
+        """Toggle device exclusion status"""
+        try:
+            data = request.json
+            device_name = data['device_name']
+            
+            with RGBController() as controller:
+                is_excluded = controller.config.toggle_device(device_name)
+                return jsonify({
+                    'success': True,
+                    'device_name': device_name,
+                    'excluded': is_excluded
+                })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/color', methods=['POST'])
+    def set_color():
+        """Set color for device(s)"""
+        try:
+            data = request.json
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            device_index = data.get('device', None)
+            
+            with RGBController() as controller:
+                controller.set_color(r, g, b, device_index)
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/effect/rainbow', methods=['POST'])
+    def rainbow_effect():
+        """Start rainbow effect"""
+        try:
+            data = request.json
+            duration = data.get('duration', 30)
+            speed = data.get('speed', 1.0)
+            device_index = data.get('device', None)
+            
+            # Run effect in background thread
+            def run_effect():
+                with RGBController() as controller:
+                    controller.rainbow_effect(duration, speed, device_index)
+            
+            thread = threading.Thread(target=run_effect, daemon=True)
+            thread.start()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/effect/breathe', methods=['POST'])
+    def breathe_effect():
+        """Start breathing effect"""
+        try:
+            data = request.json
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            duration = data.get('duration', 30)
+            speed = data.get('speed', 1.0)
+            device_index = data.get('device', None)
+            
+            # Run effect in background thread
+            def run_effect():
+                with RGBController() as controller:
+                    controller.breathing_effect(r, g, b, duration, speed, device_index)
+            
+            thread = threading.Thread(target=run_effect, daemon=True)
+            thread.start()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/resize', methods=['POST'])
+    def resize_zone():
+        """Resize a zone"""
+        try:
+            data = request.json
+            device_index = int(data['device'])
+            zone_index = int(data['zone'])
+            new_size = int(data['size'])
+            
+            with RGBController() as controller:
+                devices = controller.get_devices()
+                device = devices[device_index]
+                zone = device.zones[zone_index]
+                zone.resize(new_size)
+                
+                # Refresh and verify
+                time.sleep(0.3)
+                devices = controller.get_devices()
+                device = devices[device_index]
+                zone = device.zones[zone_index]
+                
+                return jsonify({
+                    'success': True, 
+                    'new_size': len(zone.leds)
+                })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    return app
+
+
+def open_browser(port):
+    """Open browser after a short delay"""
+    time.sleep(1.5)
+    webbrowser.open(f'http://localhost:{port}')
+
+
+def run_web_server(host='127.0.0.1', port=5000, debug=False, open_browser_window=True):
+    """Run the Flask web server"""
+    app = create_app()
+    
+    print("\n" + "="*70)
+    print("  KVG RGB Web Controller")
+    print("="*70)
+    print(f"\n🌐 Starting web server on http://{host}:{port}")
+    print(f"📱 Open this URL in your browser to control your RGB devices")
+    print(f"\n⚠️  Press CTRL+C to stop the server\n")
+    
+    if open_browser_window:
+        # Open browser in a separate thread
+        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
+    
+    try:
+        app.run(host=host, port=port, debug=debug)
+    except KeyboardInterrupt:
+        print("\n\n✓ Server stopped")
+
+
+if __name__ == '__main__':
+    run_web_server()
