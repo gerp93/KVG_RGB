@@ -2,9 +2,12 @@
 let devices = [];
 let currentEffect = null;
 let selectedItems = []; // Array of {type: 'device'|'zone', deviceIndex, zoneIndex (optional)}
+let recentColors = []; // Array of recent RGB colors
+const MAX_RECENT_COLORS = 8; // Maximum number of recent colors to store
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    loadRecentColors();
     loadDevices();
     setupEffectControls();
 });
@@ -351,7 +354,7 @@ function updateSelectionStatus() {
             }
         });
         
-        updateSelectionText(`✓ Selected: ${deviceCount} device(s), ${zoneCount} zone(s), ${ledCount} LEDs`);
+        updateSelectionText(`✓ ${deviceCount} Devices | ${zoneCount} Zones | ${ledCount} LEDs`);
         
         // If only one zone is selected (and no whole devices), load its brightness/saturation
         const onlyZones = selectedItems.filter(i => i.type === 'zone');
@@ -725,6 +728,9 @@ async function applyColor() {
     const colorPicker = document.getElementById('colorPicker');
     const hex = colorPicker.value;
     const rgb = hexToRgb(hex);
+    
+    // Save to recent colors
+    saveRecentColor(rgb.r, rgb.g, rgb.b);
     
     try {
         // Group items by device to avoid conflicts
@@ -1105,4 +1111,59 @@ function updateSelectionText(message) {
     if (selectionText) {
         selectionText.textContent = message;
     }
+}
+
+// Recent Colors Management
+function loadRecentColors() {
+    fetch('/api/colors/recent')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                recentColors = data.colors;
+                updateRecentColorsDisplay();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading recent colors:', error);
+            recentColors = [];
+        });
+}
+
+async function saveRecentColor(r, g, b) {
+    try {
+        const response = await fetch('/api/colors/recent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ r, g, b })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            // Reload recent colors to get updated list
+            loadRecentColors();
+        }
+    } catch (error) {
+        console.error('Error saving recent color:', error);
+    }
+}
+
+function updateRecentColorsDisplay() {
+    const section = document.getElementById('recentColorsSection');
+    const grid = document.getElementById('recentColorsGrid');
+    
+    if (recentColors.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'flex';
+    
+    // Generate recent color buttons
+    grid.innerHTML = recentColors.map(color => {
+        const hex = rgbToHex(color.r, color.g, color.b);
+        return `<button class="color-preset" 
+                        style="background: ${hex}" 
+                        onclick="applyPresetColor(${color.r},${color.g},${color.b})" 
+                        title="RGB(${color.r}, ${color.g}, ${color.b})"></button>`;
+    }).join('');
 }

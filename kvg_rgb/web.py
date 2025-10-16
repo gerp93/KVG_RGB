@@ -494,6 +494,33 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    @app.route('/api/colors/recent')
+    def get_recent_colors():
+        """Get recent colors"""
+        try:
+            controller = get_controller()
+            recent = controller.db.get_recent_colors(limit=8)
+            colors = [{'r': r, 'g': g, 'b': b} for r, g, b in recent]
+            return jsonify({'success': True, 'colors': colors})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/colors/recent', methods=['POST'])
+    def add_recent_color():
+        """Add a color to recent colors"""
+        try:
+            data = request.json
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            
+            controller = get_controller()
+            controller.db.add_recent_color(r, g, b)
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     # Initialize and restore colors on startup
     @app.before_request
     def restore_static_colors_once():

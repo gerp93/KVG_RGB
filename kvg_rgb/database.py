@@ -55,6 +55,18 @@ class ColorDatabase:
                     PRIMARY KEY (device_index, zone_index)
                 )
             ''')
+            
+            # Create recent_colors table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS recent_colors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    r INTEGER NOT NULL,
+                    g INTEGER NOT NULL,
+                    b INTEGER NOT NULL,
+                    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(r, g, b)
+                )
+            ''')
             conn.commit()
             
             # Add friendly_name column if it doesn't exist (for existing databases)
@@ -372,3 +384,47 @@ class ColorDatabase:
                 ORDER BY device_index, zone_index
             ''')
             return cursor.fetchall()
+    
+    def add_recent_color(self, r: int, g: int, b: int):
+        """
+        Add a color to recent colors list.
+        
+        Args:
+            r: Red value (0-255)
+            g: Green value (0-255)
+            b: Blue value (0-255)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Try to update if exists, otherwise insert
+            cursor.execute('''
+                INSERT OR REPLACE INTO recent_colors (r, g, b, used_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (r, g, b))
+            conn.commit()
+    
+    def get_recent_colors(self, limit: int = 8) -> List[Tuple[int, int, int]]:
+        """
+        Get recent colors ordered by most recently used.
+        
+        Args:
+            limit: Maximum number of colors to return
+            
+        Returns:
+            List of tuples (r, g, b)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT r, g, b FROM recent_colors
+                ORDER BY used_at DESC
+                LIMIT ?
+            ''', (limit,))
+            return cursor.fetchall()
+    
+    def clear_recent_colors(self):
+        """Clear all recent colors."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM recent_colors')
+            conn.commit()
