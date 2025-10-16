@@ -7,31 +7,38 @@
 ✅ SQLite database for persistent colors
 ✅ Zone checkbox behavior fixed
 ✅ UI spacing and margins polished
+✅ Zone flash feature (works for multi-zone devices)
+✅ Multi-mode support (Direct/Custom/Static)
 
 ## Planned Features
 
-### 1. Zone Flash/Identification ⏳
+### 1. Zone Flash/Identification ✅
 **Purpose**: Help users visually identify which physical LED corresponds to which zone
-- Add "Flash" button to each zone
-- When clicked, flash that zone white/bright color for 2-3 seconds
-- Then restore previous color
-- **Priority**: HIGH - Very useful for setup
+- ✅ Add "Flash" button to each zone
+- ✅ When clicked, flash that zone white/black 5 times
+- ✅ Then restore previous color
+- ✅ Threading isolation (separate OpenRGB connection per flash)
+- ⚠️ Note: Works best for multi-zone devices (motherboard)
+- **Status**: COMPLETE
 
-### 2. Friendly Zone Names ⏳
+### 2. Friendly Zone Names ✅
 **Purpose**: Let users rename zones to meaningful names (e.g., "CPU Header" instead of "Addressable 1")
-- Add `friendly_name` field to database
-- Add text input/edit button next to zone name
-- Display friendly name in UI (with original name as subtitle)
-- Store in config or database
-- **Priority**: MEDIUM - Nice quality of life feature
+- ✅ Add `friendly_name` field to database
+- ✅ Add text input/edit button next to zone name
+- ✅ Display friendly name in UI (with original name as subtitle)
+- ✅ Store in database
+- ✅ API endpoint `/api/zone/rename`
+- **Status**: COMPLETE
 
-### 3. Zone Resize Controls ⏳
+### 3. Zone Resize Controls ✅
 **Purpose**: Allow users to adjust the number of LEDs in resizable zones
-- Already have resize button (⚙️) for resizable zones
-- Currently shows dialog - need to implement backend
-- Add API endpoint `/api/zone/resize`
-- Update OpenRGB zone size via SDK
-- **Priority**: MEDIUM - Some users need this
+- ✅ Resize button (⚙️) for all zones
+- ✅ Dialog for entering new LED count
+- ✅ Backend API endpoint `/api/zone/resize`
+- ✅ Validation (1-500 LEDs range, or min/max if available)
+- ✅ Error handling for non-resizable zones
+- ⚠️ Note: OpenRGB SDK reports all zones as "resizable" even if they're not - actual resizability determined at runtime
+- **Status**: COMPLETE (works for addressable zones like motherboard headers)
 
 ### 4. Individual LED Control & Gradients ⏳
 **Purpose**: Fine-grained control for advanced effects
@@ -42,13 +49,16 @@
 - Pattern options (alternating, wave, etc.)
 - **Priority**: LOW - Advanced feature, can wait
 
-### 5. Brightness & Saturation Controls ⏳
+### 5. Brightness & Saturation Controls ✅
 **Purpose**: Adjust color intensity without changing hue
-- Add brightness slider per device/zone (0-100%)
-- Add saturation slider per device/zone (0-100%)
-- Apply to color picker output
-- Store in database with colors
-- **Priority**: MEDIUM - Common request
+- ✅ Add brightness slider per device/zone (0-100%)
+- ✅ Add saturation slider per device/zone (0-100%)
+- ✅ Apply using HSV color space conversion
+- ✅ Store in database with colors
+- ✅ Database preservation when setting new colors
+- ✅ Works for both individual zones and entire devices
+- ✅ Real-time updates with visual feedback
+- **Status**: COMPLETE
 
 ### 6. Per-Device/Zone Effects ⏳
 **Purpose**: Apply animated effects to specific devices or zones
