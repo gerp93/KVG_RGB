@@ -166,6 +166,23 @@ def set_color_command(args):
         sys.exit(1)
 
 
+def zone_color_command(args):
+    """Set color for a specific zone"""
+    try:
+        with RGBController() as controller:
+            controller.set_zone_color(args.device, args.zone, args.r, args.g, args.b)
+            devices = controller.get_all_devices()
+            device = devices[args.device]
+            zone = device.zones[args.zone]
+            print(f"✓ Set {device.name} - {zone.name} to RGB({args.r}, {args.g}, {args.b})")
+    except ConnectionError:
+        print("Error: Could not connect to OpenRGB server.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+
 def rainbow_command(args):
     """Rainbow effect command"""
     try:
@@ -283,6 +300,7 @@ Examples:
   kvg-rgb zones                             List all devices and zones
   kvg-rgb color 255 0 0                     Set all devices to red
   kvg-rgb color 0 255 0 --device 0          Set device 0 to green
+  kvg-rgb zone-color 1 3 255 0 0            Set device 1, zone 3 to red
   kvg-rgb resize 1 3 35                     Resize device 1, zone 3 to 35 LEDs
   kvg-rgb rainbow --duration 30             30 second rainbow effect
   kvg-rgb breathe 0 150 255 --speed 2       Fast blue breathing effect
@@ -313,6 +331,14 @@ Examples:
     color_parser.add_argument('g', type=int, help='Green value (0-255)')
     color_parser.add_argument('b', type=int, help='Blue value (0-255)')
     color_parser.add_argument('--device', type=int, default=None, help='Specific device index (default: all)')
+    
+    # Zone color command
+    zone_color_parser = subparsers.add_parser('zone-color', help='Set color for a specific zone')
+    zone_color_parser.add_argument('device', type=int, help='Device index')
+    zone_color_parser.add_argument('zone', type=int, help='Zone index')
+    zone_color_parser.add_argument('r', type=int, help='Red value (0-255)')
+    zone_color_parser.add_argument('g', type=int, help='Green value (0-255)')
+    zone_color_parser.add_argument('b', type=int, help='Blue value (0-255)')
     
     # Rainbow command
     rainbow_parser = subparsers.add_parser('rainbow', help='Run rainbow effect')
@@ -359,6 +385,8 @@ Examples:
         resize_zone_command(args)
     elif args.command == 'color':
         set_color_command(args)
+    elif args.command == 'zone-color':
+        zone_color_command(args)
     elif args.command == 'rainbow':
         rainbow_command(args)
     elif args.command == 'breathe':

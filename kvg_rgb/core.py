@@ -15,6 +15,8 @@ class RGBController:
         """Initialize connection to OpenRGB"""
         self.client = OpenRGBClient(name="KVG_RGB", address=host, port=port)
         self.config = get_config()
+        # Track zone colors to preserve them across updates
+        self._device_zone_colors = {}  # {device_index: {zone_index: RGBColor}}
         
     def disconnect(self):
         """Disconnect from OpenRGB"""
@@ -57,6 +59,9 @@ class RGBController:
             # Check if device is excluded
             if self.config.is_device_excluded(device.name):
                 return  # Skip excluded device
+            # Clear zone color tracking when setting entire device
+            if device_index in self._device_zone_colors:
+                del self._device_zone_colors[device_index]
             # Switch to Direct mode if available
             self._set_direct_mode(device)
             # Set color for all LEDs
@@ -66,13 +71,61 @@ class RGBController:
         else:
             # Get only non-excluded devices
             devices = self.get_devices(include_excluded=False)
-            for device in devices:
+            for idx, device in enumerate(devices):
+                # Clear zone color tracking
+                if idx in self._device_zone_colors:
+                    del self._device_zone_colors[idx]
                 # Switch to Direct mode if available
                 self._set_direct_mode(device)
                 # Set color for all LEDs
                 device.set_color(color)
                 # Force update to hardware
                 device.update()
+    
+    def set_zone_color(self, device_index, zone_index, r, g, b):
+        """
+        Set color for a specific zone while preserving other zones' colors
+        
+        Args:
+            device_index: Device index
+            zone_index: Zone index within the device
+            r, g, b: RGB values (0-255)
+        """
+        device = self.client.devices[device_index]
+        
+        # Check if device is excluded
+        if self.config.is_device_excluded(device.name):
+            return  # Skip excluded device
+        
+        # Switch to Direct mode
+        self._set_direct_mode(device)
+        
+        # Get the zone
+        if zone_index >= len(device.zones):
+            raise ValueError(f"Zone {zone_index} does not exist on {device.name}")
+        
+        zone = device.zones[zone_index]
+        color = RGBColor(r, g, b)
+        
+        # Initialize device in zone colors tracking if not present
+        if device_index not in self._device_zone_colors:
+            self._device_zone_colors[device_index] = {}
+        
+        # Store this zone's color
+        self._device_zone_colors[device_index][zone_index] = color
+        
+        # Apply ALL tracked zone colors for this device to preserve colors
+        for tracked_zone_index, tracked_color in self._device_zone_colors[device_index].items():
+            if tracked_zone_index < len(device.zones):
+                tracked_zone = device.zones[tracked_zone_index]
+                # Set color for each LED in the tracked zone
+                for led in tracked_zone.leds:
+                    try:
+                        device.leds[led.id].set_color(tracked_color)
+                    except Exception as e:
+                        print(f"Warning: Could not set LED {led.id}: {e}")
+        
+        device.update()
     
     def _set_direct_mode(self, device):
         """Helper to set device to Direct mode for SDK control"""

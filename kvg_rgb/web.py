@@ -9,6 +9,16 @@ import webbrowser
 import threading
 import time
 
+# Global controller instance to maintain state across requests
+_global_controller = None
+
+def get_controller():
+    """Get or create the global controller instance"""
+    global _global_controller
+    if _global_controller is None:
+        _global_controller = RGBController()
+    return _global_controller
+
 
 def create_app():
     """Create and configure the Flask app"""
@@ -23,33 +33,34 @@ def create_app():
     def get_devices():
         """Get all RGB devices with their details"""
         try:
-            with RGBController() as controller:
-                all_devices = controller.get_all_devices()
-                device_list = []
+            controller = get_controller()
+            all_devices = controller.get_all_devices()
+            device_list = []
+            
+            for idx, device in enumerate(all_devices):
+                zones = []
+                if device.zones:
+                    for zone_idx, zone in enumerate(device.zones):
+                        zones.append({
+                            'index': zone_idx,
+                            'name': zone.name,
+                            'type': zone.type,
+                            'leds': len(zone.leds),
+                            'leds_min': getattr(zone, 'leds_min', None),
+                            'leds_max': getattr(zone, 'leds_max', None),
+                            'excluded': controller.config.is_zone_excluded(device.name, zone_idx)
+                        })
                 
-                for idx, device in enumerate(all_devices):
-                    zones = []
-                    if device.zones:
-                        for zone_idx, zone in enumerate(device.zones):
-                            zones.append({
-                                'index': zone_idx,
-                                'name': zone.name,
-                                'type': zone.type,
-                                'leds': len(zone.leds),
-                                'leds_min': getattr(zone, 'leds_min', None),
-                                'leds_max': getattr(zone, 'leds_max', None)
-                            })
-                    
-                    device_list.append({
-                        'index': idx,
-                        'name': device.name,
-                        'type': device.type,
-                        'leds': len(device.leds),
-                        'zones': zones,
-                        'excluded': controller.config.is_device_excluded(device.name)
-                    })
-                
-                return jsonify({'success': True, 'devices': device_list})
+                device_list.append({
+                    'index': idx,
+                    'name': device.name,
+                    'type': device.type,
+                    'leds': len(device.leds),
+                    'zones': zones,
+                    'excluded': controller.config.is_device_excluded(device.name)
+                })
+            
+            return jsonify({'success': True, 'devices': device_list})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
@@ -60,13 +71,34 @@ def create_app():
             data = request.json
             device_name = data['device_name']
             
-            with RGBController() as controller:
-                is_excluded = controller.config.toggle_device(device_name)
-                return jsonify({
-                    'success': True,
-                    'device_name': device_name,
-                    'excluded': is_excluded
-                })
+            controller = get_controller()
+            is_excluded = controller.config.toggle_device(device_name)
+            return jsonify({
+                'success': True,
+                'device_name': device_name,
+                'excluded': is_excluded
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/toggle', methods=['POST'])
+    def toggle_zone():
+        """Toggle zone exclusion status"""
+        try:
+            data = request.json
+            device_index = int(data['device'])
+            zone_index = int(data['zone'])
+            
+            controller = get_controller()
+            devices = controller.client.devices
+            device = devices[device_index]
+            is_excluded = controller.config.toggle_zone(device.name, zone_index)
+            return jsonify({
+                'success': True,
+                'device': device_index,
+                'zone': zone_index,
+                'excluded': is_excluded
+            })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
@@ -80,11 +112,31 @@ def create_app():
             b = int(data['b'])
             device_index = data.get('device', None)
             
-            with RGBController() as controller:
-                controller.set_color(r, g, b, device_index)
+            controller = get_controller()
+            controller.set_color(r, g, b, device_index)
             
             return jsonify({'success': True})
         except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/color', methods=['POST'])
+    def set_zone_color():
+        """Set color for a specific zone"""
+        try:
+            data = request.json
+            device_index = int(data['device'])
+            zone_index = int(data['zone'])
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            
+            controller = get_controller()
+            controller.set_zone_color(device_index, zone_index, r, g, b)
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/effect/rainbow', methods=['POST'])
@@ -141,22 +193,22 @@ def create_app():
             zone_index = int(data['zone'])
             new_size = int(data['size'])
             
-            with RGBController() as controller:
-                devices = controller.get_devices()
-                device = devices[device_index]
-                zone = device.zones[zone_index]
-                zone.resize(new_size)
-                
-                # Refresh and verify
-                time.sleep(0.3)
-                devices = controller.get_devices()
-                device = devices[device_index]
-                zone = device.zones[zone_index]
-                
-                return jsonify({
-                    'success': True, 
-                    'new_size': len(zone.leds)
-                })
+            controller = get_controller()
+            devices = controller.get_devices()
+            device = devices[device_index]
+            zone = device.zones[zone_index]
+            zone.resize(new_size)
+            
+            # Refresh and verify
+            time.sleep(0.3)
+            devices = controller.get_devices()
+            device = devices[device_index]
+            zone = device.zones[zone_index]
+            
+            return jsonify({
+                'success': True, 
+                'new_size': len(zone.leds)
+            })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     

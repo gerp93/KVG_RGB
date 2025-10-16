@@ -24,7 +24,8 @@ class Config:
             except Exception:
                 pass
         return {
-            'excluded_devices': []
+            'excluded_devices': [],
+            'excluded_zones': []  # Format: ["device_name:zone_index"]
         }
     
     def _save_config(self):
@@ -71,6 +72,46 @@ class Config:
             return False  # Now included
         else:
             self.exclude_device(device_name)
+            return True  # Now excluded
+    
+    def get_excluded_zones(self):
+        """Get list of excluded zones (format: device_name:zone_index)"""
+        return self.config.get('excluded_zones', [])
+    
+    def is_zone_excluded(self, device_name, zone_index):
+        """Check if a zone is excluded"""
+        zone_key = f"{device_name}:{zone_index}"
+        return zone_key in self.get_excluded_zones()
+    
+    def exclude_zone(self, device_name, zone_index):
+        """Add a zone to the exclusion list"""
+        zone_key = f"{device_name}:{zone_index}"
+        excluded = self.get_excluded_zones()
+        if zone_key not in excluded:
+            excluded.append(zone_key)
+            self.config['excluded_zones'] = excluded
+            self._save_config()
+            return True
+        return False
+    
+    def include_zone(self, device_name, zone_index):
+        """Remove a zone from the exclusion list"""
+        zone_key = f"{device_name}:{zone_index}"
+        excluded = self.get_excluded_zones()
+        if zone_key in excluded:
+            excluded.remove(zone_key)
+            self.config['excluded_zones'] = excluded
+            self._save_config()
+            return True
+        return False
+    
+    def toggle_zone(self, device_name, zone_index):
+        """Toggle zone exclusion status"""
+        if self.is_zone_excluded(device_name, zone_index):
+            self.include_zone(device_name, zone_index)
+            return False  # Now included
+        else:
+            self.exclude_zone(device_name, zone_index)
             return True  # Now excluded
 
 

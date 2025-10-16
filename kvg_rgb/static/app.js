@@ -1,11 +1,11 @@
 // Global state
 let devices = [];
 let currentEffect = null;
+let selectedItems = []; // Array of {type: 'device'|'zone', deviceIndex, zoneIndex (optional)}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadDevices();
-    setupColorControls();
     setupEffectControls();
 });
 
@@ -28,52 +28,237 @@ async function loadDevices() {
     }
 }
 
-// Display devices in the UI
+// Display devices with selectable zones
 function displayDevices() {
     const deviceList = document.getElementById('deviceList');
-    const deviceSelector = document.querySelector('.device-selector');
     
-    if (devices.length === 0) {
-        deviceList.innerHTML = '<p class="info">No RGB devices found</p>';
-        return;
-    }
+    // Separate enabled and disabled devices
+    const enabledDevices = devices.filter(d => !d.excluded);
+    const disabledDevices = devices.filter(d => d.excluded);
     
-    // Display device cards with toggle buttons
-    deviceList.innerHTML = devices.map(device => `
-        <div class="device-item ${device.excluded ? 'excluded' : ''}" id="device-${device.index}">
-            <div class="device-header">
-                <div class="device-name">${device.name}</div>
-                <button class="device-toggle" 
-                        onclick="toggleDevice('${device.name}', ${device.index})"
-                        title="${device.excluded ? 'Enable this device' : 'Disable this device'}">
-                    ${device.excluded ? '🔴' : '🟢'}
+    // Render enabled devices
+    const enabledHTML = enabledDevices.map(device => `
+        <div class="device-card-vertical" id="device-card-${device.index}">
+            <!-- Device Header (Selectable) -->
+            <div class="device-header-selectable ${isDeviceSelected(device.index) ? 'selected' : ''}" 
+                 onclick="toggleDeviceSelection(${device.index})"
+                 data-device="${device.index}">
+                <div class="selection-indicator">
+                    <span class="checkbox">${isDeviceSelected(device.index) ? '☑' : '☐'}</span>
+                </div>
+                <div class="device-info-compact">
+                    <div class="device-name-large">${device.name}</div>
+                    <div class="device-stats">💡 ${device.leds} LEDs | 📦 ${device.zones.length} Zones</div>
+                </div>
+                <button class="device-toggle-mini" 
+                        onclick="event.stopPropagation(); toggleDevice('${device.name.replace(/'/g, "\\'")}', ${device.index})"
+                        title="Disable this device">
+                    🟢
                 </button>
             </div>
-            <div class="device-info">
-                💡 ${device.leds} LEDs | 📦 ${device.zones.length} Zones
-            </div>
+            
+            ${device.zones.length > 0 ? `
+                <!-- Zones List -->
+                <div class="zones-container">
+                    ${device.zones.filter(z => !z.excluded).map((zone) => {
+                        const originalZoneIndex = device.zones.indexOf(zone);
+                        return `
+                        <div class="zone-item-selectable ${isZoneSelected(device.index, originalZoneIndex) ? 'selected' : ''}"
+                             onclick="toggleZoneSelection(${device.index}, ${originalZoneIndex})"
+                             data-device="${device.index}"
+                             data-zone="${originalZoneIndex}">
+                            <div class="selection-indicator">
+                                <span class="checkbox">${isZoneSelected(device.index, originalZoneIndex) ? '☑' : '☐'}</span>
+                            </div>
+                            <div class="zone-info-compact">
+                                <div class="zone-name-text">${zone.name}</div>
+                                <div class="zone-led-count">${zone.leds} LEDs</div>
+                            </div>
+                            <div class="zone-actions">
+                                ${zone.leds_min !== null && zone.leds_max !== null && zone.leds_min !== zone.leds_max ? `
+                                    <button class="btn-mini" 
+                                            onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min}, ${zone.leds_max}, ${zone.leds})"
+                                            title="Resize zone">
+                                        ⚙️
+                                    </button>
+                                ` : ''}
+                                <button class="device-toggle-mini" 
+                                        onclick="event.stopPropagation(); toggleZoneExclusion('${device.name.replace(/'/g, "\\'")}', ${device.index}, ${originalZoneIndex})"
+                                        title="Disable this zone">
+                                    🟢
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    }).join('')}
+                    
+                    ${device.zones.filter(z => z.excluded).length > 0 ? `
+                        <!-- Disabled Zones Section -->
+                        <div class="disabled-zones-section">
+                            <div class="disabled-zones-header" onclick="toggleDisabledZones(${device.index})">
+                                <span class="collapse-icon" id="disabledZonesIcon-${device.index}">▶</span>
+                                <span>Disabled Zones (${device.zones.filter(z => z.excluded).length})</span>
+                            </div>
+                            <div class="disabled-zones-list" id="disabledZonesList-${device.index}" style="display: none;">
+                                ${device.zones.filter(z => z.excluded).map((zone) => {
+                                    const originalZoneIndex = device.zones.indexOf(zone);
+                                    return `
+                                    <div class="zone-item-selectable zone-excluded"
+                                         data-device="${device.index}"
+                                         data-zone="${originalZoneIndex}">
+                                        <div class="zone-info-compact">
+                                            <div class="zone-name-text">${zone.name}</div>
+                                            <div class="zone-led-count">${zone.leds} LEDs</div>
+                                        </div>
+                                        <div class="zone-actions">
+                                            <button class="device-toggle-mini" 
+                                                    onclick="event.stopPropagation(); toggleZoneExclusion('${device.name.replace(/'/g, "\\'")}', ${device.index}, ${originalZoneIndex})"
+                                                    title="Enable this zone">
+                                                🔴
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            ` : ''}
         </div>
     `).join('');
     
-    // Add device selector radio buttons (only for active devices)
-    const activeDevices = devices.filter(d => !d.excluded);
-    const deviceRadios = activeDevices.map(device => `
-        <label>
-            <input type="radio" name="targetDevice" value="${device.index}">
-            ${device.name}
-        </label>
-    `).join('');
+    // Render disabled devices in collapsible section
+    const disabledHTML = disabledDevices.length > 0 ? `
+        <div class="disabled-devices-section">
+            <div class="disabled-devices-header" onclick="toggleDisabledDevices()">
+                <span class="collapse-icon" id="disabledCollapseIcon">▶</span>
+                <span>Disabled Devices (${disabledDevices.length})</span>
+            </div>
+            <div class="disabled-devices-list" id="disabledDevicesList" style="display: none;">
+                ${disabledDevices.map(device => `
+                    <div class="device-card-vertical excluded" id="device-card-${device.index}">
+                        <div class="device-header-selectable" data-device="${device.index}">
+                            <div class="device-info-compact">
+                                <div class="device-name-large">${device.name}</div>
+                                <div class="device-stats">💡 ${device.leds} LEDs | 📦 ${device.zones.length} Zones</div>
+                            </div>
+                            <button class="device-toggle-mini" 
+                                    onclick="event.stopPropagation(); toggleDevice('${device.name.replace(/'/g, "\\'")}', ${device.index})"
+                                    title="Enable this device">
+                                🔴
+                            </button>
+                        </div>
+                        <div class="device-disabled-msg">Click 🟢 to enable RGB control</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
     
-    deviceSelector.innerHTML = `
-        <label>
-            <input type="radio" name="targetDevice" value="all" checked>
-            All Active Devices
-        </label>
-        ${deviceRadios}
-    `;
+    deviceList.innerHTML = enabledHTML + disabledHTML;
+}
+
+// Selection management
+function isDeviceSelected(deviceIndex) {
+    return selectedItems.some(item => item.type === 'device' && item.deviceIndex === deviceIndex);
+}
+
+function isZoneSelected(deviceIndex, zoneIndex) {
+    // Zone is selected if it's explicitly selected OR if its parent device is selected
+    return isDeviceSelected(deviceIndex) || 
+           selectedItems.some(item => 
+               item.type === 'zone' && 
+               item.deviceIndex === deviceIndex && 
+               item.zoneIndex === zoneIndex
+           );
+}
+
+function toggleDeviceSelection(deviceIndex) {
+    const device = devices[deviceIndex];
+    if (device.excluded) return;
     
-    // Display zones
-    displayZones();
+    if (isDeviceSelected(deviceIndex)) {
+        // Deselect device and all its zones
+        selectedItems = selectedItems.filter(item => 
+            !(item.type === 'device' && item.deviceIndex === deviceIndex)
+        );
+        // Also deselect all zones from this device
+        selectedItems = selectedItems.filter(item => 
+            !(item.type === 'zone' && item.deviceIndex === deviceIndex)
+        );
+    } else {
+        // Select device only (don't add zones - device selection covers all zones)
+        selectedItems = selectedItems.filter(item => 
+            !(item.type === 'zone' && item.deviceIndex === deviceIndex)
+        );
+        selectedItems.push({ type: 'device', deviceIndex });
+    }
+    displayDevices();
+    updateSelectionStatus();
+}
+
+function toggleZoneSelection(deviceIndex, zoneIndex) {
+    const device = devices[deviceIndex];
+    if (device.excluded) return;
+    
+    // If device is selected, deselect it first
+    if (isDeviceSelected(deviceIndex)) {
+        selectedItems = selectedItems.filter(item => 
+            !(item.type === 'device' && item.deviceIndex === deviceIndex)
+        );
+    }
+    
+    if (isZoneSelected(deviceIndex, zoneIndex)) {
+        // Deselect zone
+        selectedItems = selectedItems.filter(item => 
+            !(item.type === 'zone' && item.deviceIndex === deviceIndex && item.zoneIndex === zoneIndex)
+        );
+    } else {
+        // Select zone
+        selectedItems.push({ type: 'zone', deviceIndex, zoneIndex });
+    }
+    displayDevices();
+    updateSelectionStatus();
+}
+
+function updateSelectionStatus() {
+    const count = selectedItems.length;
+    if (count === 0) {
+        updateStatus('No devices or zones selected', 'info');
+    } else {
+        const deviceCount = selectedItems.filter(i => i.type === 'device').length;
+        const zoneCount = selectedItems.filter(i => i.type === 'zone').length;
+        updateStatus(`Selected: ${deviceCount} device(s), ${zoneCount} zone(s)`, 'success');
+    }
+}
+
+// Toggle disabled devices section
+function toggleDisabledDevices() {
+    const list = document.getElementById('disabledDevicesList');
+    const icon = document.getElementById('disabledCollapseIcon');
+    
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        list.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+// Toggle disabled zones section for a specific device
+function toggleDisabledZones(deviceIndex) {
+    const list = document.getElementById(`disabledZonesList-${deviceIndex}`);
+    const icon = document.getElementById(`disabledZonesIcon-${deviceIndex}`);
+    
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        list.style.display = 'none';
+        icon.textContent = '▶';
+    }
 }
 
 // Toggle device enabled/disabled
@@ -100,50 +285,34 @@ async function toggleDevice(deviceName, deviceIndex) {
     }
 }
 
-// Display zones for management
-function displayZones() {
-    const zoneList = document.getElementById('zoneList');
-    
-    const devicesWithZones = devices.filter(d => d.zones.length > 0);
-    
-    if (devicesWithZones.length === 0) {
-        zoneList.innerHTML = '<p class="info">No zones found on any device</p>';
-        return;
+// Toggle zone exclusion (hide/show)
+async function toggleZoneExclusion(deviceName, deviceIndex, zoneIndex) {
+    try {
+        const response = await fetch('/api/zone/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device: deviceIndex, zone: zoneIndex })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            const status = data.excluded ? 'disabled' : 'enabled';
+            updateStatus(`✓ Zone ${status}`, 'success');
+            // Remove from selection if it was selected
+            if (data.excluded) {
+                selectedItems = selectedItems.filter(item => 
+                    !(item.type === 'zone' && item.deviceIndex === deviceIndex && item.zoneIndex === zoneIndex)
+                );
+            }
+            // Reload devices to update UI
+            await loadDevices();
+        } else {
+            updateStatus('✗ Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to toggle zone', 'error');
+        console.error('Error:', error);
     }
-    
-    zoneList.innerHTML = devicesWithZones.map(device => `
-        <div class="zone-device">
-            <div class="zone-device-name">${device.name}</div>
-            <div class="zones-grid">
-                ${device.zones.map(zone => `
-                    <div class="zone-item">
-                        <div class="zone-header">
-                            <span class="zone-name">${zone.name}</span>
-                            <span class="zone-size">${zone.leds} LEDs</span>
-                        </div>
-                        ${zone.leds_min !== null && zone.leds_max !== null ? `
-                            <div class="zone-info">
-                                Range: ${zone.leds_min}-${zone.leds_max} LEDs
-                            </div>
-                            ${zone.leds_min !== zone.leds_max ? `
-                                <div class="zone-resize">
-                                    <input type="number" 
-                                           id="zone-${device.index}-${zone.index}" 
-                                           min="${zone.leds_min}" 
-                                           max="${zone.leds_max}" 
-                                           value="${zone.leds}">
-                                    <button class="btn btn-primary" 
-                                            onclick="resizeZone(${device.index}, ${zone.index})">
-                                        Resize
-                                    </button>
-                                </div>
-                            ` : '<p class="zone-info">Fixed size zone</p>'}
-                        ` : '<p class="zone-info">Zone info not available</p>'}
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `).join('');
 }
 
 // Setup color control listeners
@@ -184,16 +353,104 @@ function setupEffectControls() {
     const rainbowSpeed = document.getElementById('rainbowSpeed');
     const breatheSpeed = document.getElementById('breatheSpeed');
     
-    rainbowSpeed.addEventListener('input', (e) => {
-        document.getElementById('rainbowSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
-    });
+    if (rainbowSpeed) {
+        rainbowSpeed.addEventListener('input', (e) => {
+            document.getElementById('rainbowSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+    }
     
-    breatheSpeed.addEventListener('input', (e) => {
-        document.getElementById('breatheSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
-    });
+    if (breatheSpeed) {
+        breatheSpeed.addEventListener('input', (e) => {
+            document.getElementById('breatheSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+    }
 }
 
-// Set color
+// Apply color to selected items
+async function applyColor() {
+    if (selectedItems.length === 0) {
+        updateStatus('⚠ Please select at least one device or zone', 'error');
+        return;
+    }
+    
+    const colorPicker = document.getElementById('colorPicker');
+    const hex = colorPicker.value;
+    const rgb = hexToRgb(hex);
+    
+    try {
+        // Group items by device to avoid conflicts
+        const deviceIndices = new Set(selectedItems.filter(i => i.type === 'device').map(i => i.deviceIndex));
+        const zonesToUpdate = selectedItems.filter(i => 
+            i.type === 'zone' && !deviceIndices.has(i.deviceIndex)
+        );
+        
+        // Apply to devices (entire device at once)
+        for (const deviceIndex of deviceIndices) {
+            const response = await fetch('/api/color', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ r: rgb.r, g: rgb.g, b: rgb.b, device: deviceIndex })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                updateStatus(`✗ Error setting color for device ${deviceIndex}`, 'error');
+                return;
+            }
+        }
+        
+        // Apply to individual zones (only if parent device not selected)
+        for (const item of zonesToUpdate) {
+            const response = await fetch('/api/zone/color', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    device: item.deviceIndex, 
+                    zone: item.zoneIndex, 
+                    r: rgb.r, 
+                    g: rgb.g, 
+                    b: rgb.b 
+                })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                updateStatus(`✗ Error setting color for zone ${item.zoneIndex}`, 'error');
+                return;
+            }
+        }
+        
+        updateStatus(`✓ Color applied to ${selectedItems.length} item(s)`, 'success');
+    } catch (error) {
+        updateStatus('✗ Failed to apply color', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Apply preset color to selected items
+async function applyPresetColor(r, g, b) {
+    if (selectedItems.length === 0) {
+        updateStatus('⚠ Please select at least one device or zone', 'error');
+        return;
+    }
+    
+    const hex = rgbToHex(r, g, b);
+    document.getElementById('colorPicker').value = hex;
+    await applyColor();
+}
+
+// Show resize dialog
+function showResizeDialog(deviceIndex, zoneIndex, min, max, current) {
+    const newSize = prompt(`Resize zone (${min}-${max} LEDs):`, current);
+    if (newSize !== null) {
+        const size = parseInt(newSize);
+        if (size >= min && size <= max) {
+            resizeZone(deviceIndex, zoneIndex, size);
+        } else {
+            updateStatus(`✗ Size must be between ${min} and ${max}`, 'error');
+        }
+    }
+}
+
+// Set color (old function - kept for compatibility)
 async function setColor() {
     const r = parseInt(document.getElementById('rSlider').value);
     const g = parseInt(document.getElementById('gSlider').value);
@@ -278,9 +535,17 @@ async function startBreathe() {
 }
 
 // Resize zone
-async function resizeZone(deviceIndex, zoneIndex) {
-    const input = document.getElementById(`zone-${deviceIndex}-${zoneIndex}`);
-    const newSize = parseInt(input.value);
+async function resizeZone(deviceIndex, zoneIndex, newSize) {
+    // If newSize not provided, try to get from input (backward compatibility)
+    if (newSize === undefined) {
+        const input = document.getElementById(`zone-${deviceIndex}-${zoneIndex}`);
+        if (input) {
+            newSize = parseInt(input.value);
+        } else {
+            updateStatus('✗ Invalid resize parameters', 'error');
+            return;
+        }
+    }
     
     try {
         const response = await fetch('/api/zone/resize', {
@@ -299,6 +564,37 @@ async function resizeZone(deviceIndex, zoneIndex) {
         }
     } catch (error) {
         updateStatus('✗ Failed to resize zone', 'error');
+        console.error('Error:', error);
+    }
+}
+
+// Set zone color
+async function setZoneColor(deviceIndex, zoneIndex) {
+    const colorPicker = document.getElementById(`zone-color-${deviceIndex}-${zoneIndex}`);
+    const hex = colorPicker.value;
+    const rgb = hexToRgb(hex);
+    
+    try {
+        const response = await fetch('/api/zone/color', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                device: deviceIndex, 
+                zone: zoneIndex, 
+                r: rgb.r, 
+                g: rgb.g, 
+                b: rgb.b 
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateStatus(`✓ Zone color updated to RGB(${rgb.r}, ${rgb.g}, ${rgb.b})`, 'success');
+        } else {
+            updateStatus('✗ Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to set zone color', 'error');
         console.error('Error:', error);
     }
 }
