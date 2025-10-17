@@ -5,7 +5,7 @@ Provides a local web UI for controlling RGB devices
 """
 from flask import Flask, render_template, jsonify, request
 from .core import RGBController
-from .effect_manager import EffectManager
+from .effects import EffectManager
 import webbrowser
 import threading
 import time

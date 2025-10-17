@@ -2,6 +2,10 @@
 
 This project provides Python scripts for controlling RGB devices using OpenRGB with a professional CLI interface.
 
+## Quick Links
+
+📖 [Quick Start Guide](docs/QUICKSTART.md) | 🚀 [Release Guide](docs/RELEASE.md) | 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) | 📝 [Changelog](docs/CHANGELOG.md)
+
 ## Features
 
 - 🎨 Control all your RGB devices from the command line
@@ -233,3 +237,13 @@ If you get a connection error:
 1. Make sure OpenRGB is running
 2. Check that SDK Server is enabled in OpenRGB settings
 3. Verify the port (default: 6742)
+
+For more detailed troubleshooting, see [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+## Documentation
+
+- 📖 [Quick Start Guide](docs/QUICKSTART.md) - Get up and running quickly
+- 🚀 [Release Guide](docs/RELEASE.md) - How to build and release
+- 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- 📝 [Changelog](docs/CHANGELOG.md) - Version history and updates
+- ✅ [TODO](TODO.md) - Development roadmap and planned features

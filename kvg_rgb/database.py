@@ -6,6 +6,7 @@ import os
 import json
 from pathlib import Path
 from typing import Optional, Tuple, List
+from .paths import DATABASE_FILE, ensure_data_dir
 
 
 class ColorDatabase:
@@ -19,10 +20,9 @@ class ColorDatabase:
             db_path: Path to the SQLite database file. If None, uses default location.
         """
         if db_path is None:
-            # Use ~/.kvg_rgb/colors.db by default
-            config_dir = Path.home() / '.kvg_rgb'
-            config_dir.mkdir(exist_ok=True)
-            db_path = str(config_dir / 'colors.db')
+            # Use centralized path from paths module
+            ensure_data_dir()
+            db_path = str(DATABASE_FILE)
         
         self.db_path = db_path
         self._initialize_database()
