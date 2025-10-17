@@ -15,21 +15,26 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="kvg-rgb",
     version=version['__version__'],
-    description="RGB device controller using OpenRGB with CLI and future GUI support",
+    description="RGB device controller using OpenRGB with CLI and web UI support",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="KVG",
     packages=find_packages(),
+    include_package_data=True,  # Include non-Python files specified in MANIFEST.in
+    package_data={
+        'kvg_rgb': [
+            'static/*.css',
+            'static/*.js',
+            'templates/*.html',
+        ],
+    },
     install_requires=[
         "openrgb-python>=0.2.15",
+        "flask>=2.0.0",  # Required for web UI
     ],
     entry_points={
         'console_scripts': [
             'kvg-rgb=kvg_rgb.cli:main',
-        ],
-        'gui_scripts': [
-            # Future GUI entry point can go here
-            # 'kvg-rgb-gui=kvg_rgb.gui:main',
         ],
     },
     python_requires='>=3.7',
