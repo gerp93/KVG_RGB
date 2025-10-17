@@ -4,7 +4,7 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 ## Quick Links
 
-📖 [Quick Start Guide](docs/QUICKSTART.md) | 🚀 [Release Guide](docs/RELEASE.md) | 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) | 📝 [Changelog](docs/CHANGELOG.md)
+� [Installation Guide](docs/INSTALL.md) | �📖 [Quick Start Guide](docs/QUICKSTART.md) | 🚀 [Release Guide](docs/RELEASE.md) | 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) | 📝 [Changelog](docs/CHANGELOG.md)
 
 ## Features
 
@@ -18,7 +18,23 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 ## Installation
 
-### Option 1: Install as Command-Line Tool (Recommended)
+### For End Users (Distributed Package)
+
+If you received a `.whl` file from a release:
+
+```cmd
+# Easy installation with auto-upgrade
+install.bat
+
+# Or manual installation
+pip install kvg_rgb-X.X.X-py3-none-any.whl
+```
+
+**Your settings are preserved across updates!** All data is stored in `%USERPROFILE%\.kvg_rgb\`
+
+📦 **See the full [Installation Guide](docs/INSTALL.md)** for detailed instructions.
+
+### For Developers (From Source)
 
 Install the package in development mode to use it from anywhere:
 
@@ -39,15 +55,6 @@ Now you can use `kvg-rgb` command from anywhere in your terminal!
 kvg-rgb list
 kvg-rgb color 255 0 0
 ```
-
-### Option 2: Manual Setup
-
-1. **Virtual Environment**: A Python virtual environment has been created in the `venv` folder.
-
-2. **Activate the virtual environment**:
-   ```powershell
-   .\venv\Scripts\Activate.ps1
-   ```
 
 3. **Dependencies are already installed**, but if you need to reinstall:
    ```powershell
