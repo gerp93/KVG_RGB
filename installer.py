@@ -139,17 +139,29 @@ class InstallerGUI:
         return None
     
     def find_wheel_file(self):
-        """Find the .whl file in the same directory as this script"""
+        """Find the .whl file - check embedded resource first, then same directory"""
+        # First check if we have an embedded wheel file (frozen exe)
         if getattr(sys, 'frozen', False):
-            # Running as compiled exe
+            # Running as compiled exe - check for bundled wheel
             exe_dir = Path(sys.executable).parent
+            temp_dir = Path(sys._MEIPASS) if hasattr(sys, '_MEIPASS') else exe_dir
+            
+            # Look in temp dir first (bundled resource)
+            wheel_files = list(temp_dir.glob("kvg_rgb-*.whl"))
+            if wheel_files:
+                return wheel_files[0]
+            
+            # Fall back to exe directory
+            wheel_files = list(exe_dir.glob("kvg_rgb-*.whl"))
+            if wheel_files:
+                return wheel_files[0]
         else:
             # Running as script
             exe_dir = Path(__file__).parent
+            wheel_files = list(exe_dir.glob("kvg_rgb-*.whl"))
+            if wheel_files:
+                return wheel_files[0]
         
-        wheel_files = list(exe_dir.glob("kvg_rgb-*.whl"))
-        if wheel_files:
-            return wheel_files[0]
         return None
     
     def log_message(self, message):
@@ -276,11 +288,22 @@ class InstallerGUI:
                 self.log_message("You can now use 'kvg-rgb' from the command line")
                 self.log_message("Or run 'kvg-rgb web' to start the web interface")
                 
-                messagebox.showinfo(
-                    "Success",
-                    "KVG RGB Controller installed successfully!\n\n"
-                    "Run 'kvg-rgb web' to start the web interface"
+                # Ask if user wants to create a desktop shortcut
+                create_shortcut = messagebox.askyesno(
+                    "Create Desktop Shortcut?",
+                    "Installation successful!\n\n"
+                    "Would you like to create a desktop shortcut\n"
+                    "to launch the RGB Controller web interface?"
                 )
+                
+                if create_shortcut:
+                    self.create_desktop_shortcut()
+                else:
+                    messagebox.showinfo(
+                        "Success",
+                        "KVG RGB Controller installed successfully!\n\n"
+                        "Run 'kvg-rgb web' to start the web interface"
+                    )
             else:
                 self.log_message("\n❌ Installation failed!")
                 messagebox.showerror("Error", "Installation failed. Check the log for details.")
@@ -292,6 +315,49 @@ class InstallerGUI:
         finally:
             self.install_btn.config(state="normal")
             self.close_btn.config(state="normal")
+    
+    def create_desktop_shortcut(self):
+        """Create a desktop shortcut to launch the web interface"""
+        try:
+            desktop = Path.home() / "Desktop"
+            shortcut_name = "KVG RGB Controller.lnk"
+            shortcut_path = desktop / shortcut_name
+            
+            # PowerShell script to create shortcut
+            ps_script = f"""
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
+$Shortcut.TargetPath = "{self.python_exe}"
+$Shortcut.Arguments = "-m kvg_rgb.cli web"
+$Shortcut.WorkingDirectory = "{Path.home()}"
+$Shortcut.Description = "Launch KVG RGB Controller Web Interface"
+$Shortcut.Save()
+"""
+            
+            subprocess.run(
+                ["powershell", "-Command", ps_script],
+                capture_output=True,
+                timeout=10
+            )
+            
+            if shortcut_path.exists():
+                self.log_message(f"\n✅ Desktop shortcut created: {shortcut_name}")
+                messagebox.showinfo(
+                    "Shortcut Created",
+                    f"Desktop shortcut created successfully!\n\n"
+                    f"Double-click '{shortcut_name}' on your desktop\n"
+                    "to launch the RGB Controller."
+                )
+            else:
+                raise Exception("Shortcut file was not created")
+                
+        except Exception as e:
+            self.log_message(f"\n⚠️ Could not create desktop shortcut: {e}")
+            messagebox.showwarning(
+                "Shortcut Failed",
+                f"Could not create desktop shortcut.\n\n"
+                f"You can still run: kvg-rgb web"
+            )
 
 
 def main():
