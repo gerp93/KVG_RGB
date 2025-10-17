@@ -96,13 +96,21 @@ function displayDevices() {
                 <!-- Device-Level Controls (When Locked) -->
                 <div class="device-controls-container">
                     <div class="device-control-row">
-                        <label>Device Color:</label>
-                        <input type="color" 
-                               class="color-picker-mini" 
-                               value="${device.zones[0] && device.zones[0].color ? rgbToHex(device.zones[0].color.r, device.zones[0].color.g, device.zones[0].color.b) : '#000000'}"
-                               onclick="event.stopPropagation()"
-                               onchange="setDeviceColorFromPicker(${device.index}, this.value)"
-                               title="Set color for all zones">
+                        ${!device.zones.some(z => z.led_control_enabled) ? `
+                            <label>Device Color:</label>
+                            <input type="color" 
+                                   class="color-picker-mini" 
+                                   value="${device.zones[0] && device.zones[0].color ? rgbToHex(device.zones[0].color.r, device.zones[0].color.g, device.zones[0].color.b) : '#000000'}"
+                                   onclick="event.stopPropagation()"
+                                   onchange="setDeviceColorFromPicker(${device.index}, this.value)"
+                                   title="Set color for all zones">
+                        ` : ''}
+                        <button class="btn-small" 
+                                id="device-led-toggle-${device.index}"
+                                onclick="event.stopPropagation(); toggleDeviceLEDColors(${device.index})"
+                                title="Toggle LED control for all zones">
+                            ${device.zones.some(z => z.led_control_enabled) ? '⏸️' : '▶️'}
+                        </button>
                     </div>
                     <div class="device-sliders">
                         <div class="zone-slider-control">
@@ -156,15 +164,17 @@ function displayDevices() {
                                     <div class="zone-led-count">${zone.leds} LEDs</div>
                                 </div>
                                 <div class="zone-actions">
-                                    <input type="color" 
-                                           class="color-picker-mini" 
-                                           value="${zone.color ? rgbToHex(zone.color.r, zone.color.g, zone.color.b) : '#000000'}"
-                                           onclick="event.stopPropagation()"
-                                           onchange="setZoneColorFromPicker(${device.index}, ${originalZoneIndex}, this.value)"
-                                           title="Zone color">
+                                    ${!zone.led_control_enabled ? `
+                                        <input type="color" 
+                                               class="color-picker-mini" 
+                                               value="${zone.color ? rgbToHex(zone.color.r, zone.color.g, zone.color.b) : '#000000'}"
+                                               onclick="event.stopPropagation()"
+                                               onchange="setZoneColorFromPicker(${device.index}, ${originalZoneIndex}, this.value)"
+                                               title="Zone color">
+                                    ` : ''}
                                     <button class="btn-mini" 
                                             onclick="event.stopPropagation(); editZoneName(${device.index}, ${originalZoneIndex}, '${zone.name.replace(/'/g, "\\'")}', '${(zone.friendly_name || '').replace(/'/g, "\\'")}')"
-                                            title="Rename zone">
+                                            title="Set friendly name">
                                         ✏️
                                     </button>
                                     <button class="btn-mini btn-flash" 
@@ -186,8 +196,23 @@ function displayDevices() {
                                         <button class="btn-mini" 
                                                 onclick="event.stopPropagation(); showResizeDialog(${device.index}, ${originalZoneIndex}, ${zone.leds_min || 1}, ${zone.leds_max || 300}, ${zone.leds})"
                                                 title="Resize zone (adjust LED count)">
-                                            ⚙️
+                                            ↔️
                                         </button>
+                                    ` : ''}
+                                    ${zone.leds > 1 ? `
+                                        <button class="btn-mini" 
+                                                onclick="event.stopPropagation(); toggleLEDView(${device.index}, ${originalZoneIndex}, ${zone.leds})"
+                                                title="Advanced LED control">
+                                            🎛️
+                                        </button>
+                                        ${zone.has_led_colors ? `
+                                            <button class="btn-mini" 
+                                                    id="led-toggle-${device.index}-${originalZoneIndex}"
+                                                    onclick="event.stopPropagation(); toggleLEDControlEnabled(${device.index}, ${originalZoneIndex})"
+                                                    title="${zone.led_control_enabled ? 'Disable LED control (use zone color)' : 'Enable LED control (use saved LED colors)'}">
+                                                ${zone.led_control_enabled ? '⏸️' : '▶️'}
+                                            </button>
+                                        ` : ''}
                                     ` : ''}
                                     <button class="device-toggle-mini" 
                                             onclick="event.stopPropagation(); toggleZoneExclusion('${device.name.replace(/'/g, "\\'")}', ${device.index}, ${originalZoneIndex})"
@@ -222,6 +247,24 @@ function displayDevices() {
                                            onchange="applyZoneBrightnessSaturation(${device.index}, ${originalZoneIndex})"
                                            title="Saturation">
                                     <span class="zone-slider-value" id="zone-saturation-${device.index}-${originalZoneIndex}">${zone.saturation || 100}%</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Advanced LED Control (Hidden by default) -->
+                            <div class="led-control-panel" id="led-panel-${device.index}-${originalZoneIndex}" style="display: none;">
+                                <div class="led-control-header">
+                                    <h4>Individual LED Control (${zone.leds} LEDs)</h4>
+                                    <div class="led-control-actions">
+                                        <button class="btn-small" onclick="event.stopPropagation(); showGradientDialog(${device.index}, ${originalZoneIndex}, ${zone.leds})">
+                                            🌈 Gradient
+                                        </button>
+                                        <button class="btn-small" onclick="event.stopPropagation(); clearLEDColors(${device.index}, ${originalZoneIndex})">
+                                            🔄 Reset to Zone Color
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="led-grid" id="led-grid-${device.index}-${originalZoneIndex}">
+                                    <!-- LED buttons will be populated here -->
                                 </div>
                             </div>
                         </div>
@@ -286,7 +329,7 @@ function displayDevices() {
                                 🔴
                             </button>
                         </div>
-                        <div class="device-disabled-msg">Click 🟢 to enable RGB control</div>
+                        <div class="device-disabled-msg">Click � to enable RGB control</div>
                     </div>
                 `).join('')}
             </div>
@@ -294,6 +337,44 @@ function displayDevices() {
     ` : '';
     
     deviceList.innerHTML = enabledHTML + disabledHTML;
+    
+    // Update device LED toggle button states
+    updateDeviceLEDToggleButtons();
+}
+
+// Update the device-level LED toggle button text based on current state
+async function updateDeviceLEDToggleButtons() {
+    for (let deviceIndex = 0; deviceIndex < devices.length; deviceIndex++) {
+        const button = document.getElementById(`device-led-toggle-${deviceIndex}`);
+        if (!button) continue; // Button only exists for locked devices
+        
+        const device = devices[deviceIndex];
+        let anyEnabled = false;
+        
+        // Check if any zones have LED control enabled
+        for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+            try {
+                const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+                const data = await response.json();
+                
+                if (data.success && data.leds.length > 0 && data.enabled) {
+                    anyEnabled = true;
+                    break;
+                }
+            } catch (error) {
+                console.error('Error checking LED state:', error);
+            }
+        }
+        
+        // Update button text
+        if (anyEnabled) {
+            button.textContent = '⏸️';
+            button.title = 'Disable LED control (use zone colors)';
+        } else {
+            button.textContent = '▶️';
+            button.title = 'Enable LED control (use saved LED colors)';
+        }
+    }
 }
 
 // Selection management
@@ -840,6 +921,9 @@ async function applyColor() {
         await saveRecentColor(rgb.r, rgb.g, rgb.b);
         console.log('Recent color saved');
         
+        // Reload devices to update UI with new colors
+        await loadDevices();
+        
     } catch (error) {
         updateStatus('✗ Failed to apply color', 'error');
         console.error('Error:', error);
@@ -1316,4 +1400,369 @@ async function applyDeviceBrightnessSaturation(deviceIndex) {
 
 function updateDeviceSliderValue(deviceIndex, type, value) {
     document.getElementById(`device-${type}-value-${deviceIndex}`).textContent = value + '%';
+}
+
+// Individual LED Control Functions
+async function toggleLEDView(deviceIndex, zoneIndex, ledCount) {
+    const panel = document.getElementById(`led-panel-${deviceIndex}-${zoneIndex}`);
+    const grid = document.getElementById(`led-grid-${deviceIndex}-${zoneIndex}`);
+    const toggleButton = document.getElementById(`led-toggle-${deviceIndex}-${zoneIndex}`);
+    
+    if (!panel || !grid) {
+        console.error(`LED panel elements not found for device ${deviceIndex}, zone ${zoneIndex}`);
+        console.log(`Panel: ${panel}, Grid: ${grid}`);
+        return;
+    }
+    
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        // Show LED panel
+        panel.style.display = 'block';
+        
+        // Load LED colors from server
+        try {
+            const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update toggle button based on enabled state
+                updateLEDToggleButton(deviceIndex, zoneIndex, data.enabled);
+                
+                // Populate LED grid
+                grid.innerHTML = '';
+                for (let i = 0; i < ledCount; i++) {
+                    const led = data.leds.find(l => l.index === i);
+                    const color = led ? rgbToHex(led.r, led.g, led.b) : '#000000';
+                    
+                    const ledButton = document.createElement('div');
+                    ledButton.className = 'led-button';
+                    ledButton.innerHTML = `
+                        <div class="led-number">${i}</div>
+                        <input type="color" 
+                               class="led-color-picker" 
+                               value="${color}"
+                               oninput="setLEDColor(${deviceIndex}, ${zoneIndex}, ${i}, this.value)"
+                               title="LED ${i} color"
+                               ${data.enabled ? '' : 'disabled'}>
+                        <button class="led-flash-btn" 
+                                onclick="flashLED(${deviceIndex}, ${zoneIndex}, ${i})"
+                                title="Flash LED ${i}">⚡</button>
+                    `;
+                    grid.appendChild(ledButton);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading LED colors:', error);
+        }
+    } else {
+        // Hide LED panel
+        panel.style.display = 'none';
+    }
+}
+
+function updateLEDToggleButton(deviceIndex, zoneIndex, enabled) {
+    const toggleButton = document.getElementById(`led-toggle-${deviceIndex}-${zoneIndex}`);
+    if (toggleButton) {
+        if (enabled) {
+            toggleButton.textContent = '⏸️';
+            toggleButton.title = 'Disable LED control (use zone color)';
+        } else {
+            toggleButton.textContent = '▶️';
+            toggleButton.title = 'Enable LED control (use saved LED colors)';
+        }
+    }
+}
+
+async function toggleLEDControlEnabled(deviceIndex, zoneIndex) {
+    try {
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                // Reload devices to update the UI (color picker visibility and button)
+                await loadDevices();
+                
+                // Update color pickers disabled state in the LED grid if it's open
+                const grid = document.getElementById(`led-grid-${deviceIndex}-${zoneIndex}`);
+                if (grid) {
+                    const colorPickers = grid.querySelectorAll('.led-color-picker');
+                    colorPickers.forEach(picker => {
+                        picker.disabled = !data.enabled;
+                    });
+                }
+                
+                console.log(`LED control ${data.enabled ? 'enabled' : 'disabled'}`);
+            }
+        }
+    } catch (error) {
+        console.error('Error toggling LED control:', error);
+    }
+}
+
+async function setLEDColor(deviceIndex, zoneIndex, ledIndex, hexColor) {
+    const rgb = hexToRgb(hexColor);
+    if (!rgb) return;
+    
+    try {
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/led/${ledIndex}/color`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ r: rgb.r, g: rgb.g, b: rgb.b })
+        });
+        
+        if (response.ok) {
+            console.log(`LED ${ledIndex} set to ${hexColor}`);
+        }
+    } catch (error) {
+        console.error('Error setting LED color:', error);
+    }
+}
+
+async function flashLED(deviceIndex, zoneIndex, ledIndex) {
+    try {
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/led/${ledIndex}/flash`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            console.log(`LED ${ledIndex} flashed`);
+        }
+    } catch (error) {
+        console.error('Error flashing LED:', error);
+    }
+}
+
+async function clearLEDColors(deviceIndex, zoneIndex) {
+    if (!confirm('Set all LEDs to the current zone color?')) return;
+    
+    try {
+        // First get the current zone color
+        const devicesResponse = await fetch('/api/devices');
+        const devicesData = await devicesResponse.json();
+        const device = devicesData.devices[deviceIndex];
+        const zone = device.zones.find(z => z.index === zoneIndex);
+        
+        if (!zone || !zone.color) {
+            alert('No zone color set. Please set a zone color first.');
+            return;
+        }
+        
+        // Use the new fill endpoint to set all LEDs at once
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds/fill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                r: zone.color.r,
+                g: zone.color.g,
+                b: zone.color.b
+            })
+        });
+        
+        if (response.ok) {
+            // Reload the LED panel to show updated colors
+            await loadDevices();
+            
+            // Reopen the LED panel to show the updated colors
+            const panel = document.getElementById(`led-panel-${deviceIndex}-${zoneIndex}`);
+            if (panel && panel.style.display === 'block') {
+                // Reload LED grid
+                toggleLEDView(deviceIndex, zoneIndex, zone.leds);
+                toggleLEDView(deviceIndex, zoneIndex, zone.leds);
+            }
+        } else {
+            alert('Failed to set LEDs to zone color');
+        }
+    } catch (error) {
+        console.error('Error setting LEDs to zone color:', error);
+    }
+}
+
+function showGradientDialog(deviceIndex, zoneIndex, ledCount) {
+    const startColor = prompt('Enter start color (hex, e.g., #FF0000 for red):', '#FF0000');
+    if (!startColor) return;
+    
+    const endColor = prompt('Enter end color (hex, e.g., #0000FF for blue):', '#0000FF');
+    if (!endColor) return;
+    
+    const startRgb = hexToRgb(startColor);
+    const endRgb = hexToRgb(endColor);
+    
+    if (!startRgb || !endRgb) {
+        alert('Invalid color format. Please use hex format like #FF0000');
+        return;
+    }
+    
+    applyGradient(deviceIndex, zoneIndex, ledCount, startRgb, endRgb);
+}
+
+async function applyGradient(deviceIndex, zoneIndex, ledCount, startRgb, endRgb) {
+    try {
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/gradient`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                start_r: startRgb.r,
+                start_g: startRgb.g,
+                start_b: startRgb.b,
+                end_r: endRgb.r,
+                end_g: endRgb.g,
+                end_b: endRgb.b
+            })
+        });
+        
+        if (response.ok) {
+            // Refresh LED panel to show gradient
+            const panel = document.getElementById(`led-panel-${deviceIndex}-${zoneIndex}`);
+            if (panel.style.display !== 'none') {
+                toggleLEDView(deviceIndex, zoneIndex, ledCount);
+                toggleLEDView(deviceIndex, zoneIndex, ledCount);
+            }
+        }
+    } catch (error) {
+        console.error('Error applying gradient:', error);
+    }
+}
+
+async function enableLEDColorsForZone(deviceIndex, zoneIndex) {
+    try {
+        // Check if zone has saved LED colors
+        const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+        const data = await response.json();
+        
+        if (!data.success || data.leds.length === 0) {
+            alert('No saved LED colors found for this zone. Use the 🎛️ button to set individual LED colors first.');
+            return;
+        }
+        
+        // Enable LED control if not already enabled
+        if (!data.enabled) {
+            const toggleResponse = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (toggleResponse.ok) {
+                console.log(`LED colors enabled for zone ${zoneIndex}`);
+                await loadDevices(); // Refresh UI
+            }
+        } else {
+            console.log(`LED colors already enabled for zone ${zoneIndex}`);
+        }
+    } catch (error) {
+        console.error('Error enabling LED colors:', error);
+    }
+}
+
+async function toggleDeviceLEDColors(deviceIndex) {
+    try {
+        // Get all zones for the device
+        const devicesResponse = await fetch('/api/devices');
+        const devicesData = await devicesResponse.json();
+        const device = devicesData.devices[deviceIndex];
+        
+        if (!device) {
+            console.error('Device not found');
+            return;
+        }
+        
+        // Check current state by looking at all zones
+        let anyEnabled = false;
+        let anyDisabled = false;
+        
+        for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+            const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+            const data = await response.json();
+            
+            if (data.success && data.leds.length > 0) {
+                if (data.enabled) {
+                    anyEnabled = true;
+                } else {
+                    anyDisabled = true;
+                }
+            }
+        }
+        
+        // If any zones have LED control enabled, disable all
+        // Otherwise, enable all zones that have saved colors
+        const shouldEnable = !anyEnabled;
+        
+        let changedCount = 0;
+        
+        for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+            const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+            const data = await response.json();
+            
+            if (data.success && data.leds.length > 0) {
+                // Toggle only if state doesn't match target
+                if (data.enabled !== shouldEnable) {
+                    const toggleResponse = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (toggleResponse.ok) {
+                        changedCount++;
+                    }
+                }
+            }
+        }
+        
+        if (changedCount > 0) {
+            console.log(`LED colors ${shouldEnable ? 'enabled' : 'disabled'} for ${changedCount} zones`);
+            await loadDevices(); // Refresh UI
+        } else if (!shouldEnable) {
+            // We tried to disable but found nothing to disable
+            await loadDevices(); // Still refresh
+        } else {
+            alert('No saved LED colors found for any zones in this device. Use the 🎛️ button on each zone to set individual LED colors first.');
+        }
+    } catch (error) {
+        console.error('Error toggling LED colors for device:', error);
+    }
+}
+
+async function enableLEDColorsForDevice(deviceIndex) {
+    try {
+        // Get all zones for the device
+        const devicesResponse = await fetch('/api/devices');
+        const devicesData = await devicesResponse.json();
+        const device = devicesData.devices[deviceIndex];
+        
+        if (!device) {
+            console.error('Device not found');
+            return;
+        }
+        
+        let enabledCount = 0;
+        
+        // Enable LED control for each zone that has saved colors
+        for (let zoneIndex = 0; zoneIndex < device.zones.length; zoneIndex++) {
+            const response = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds`);
+            const data = await response.json();
+            
+            if (data.success && data.leds.length > 0 && !data.enabled) {
+                const toggleResponse = await fetch(`/api/zone/${deviceIndex}/${zoneIndex}/leds/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (toggleResponse.ok) {
+                    enabledCount++;
+                }
+            }
+        }
+        
+        if (enabledCount > 0) {
+            console.log(`LED colors enabled for ${enabledCount} zones`);
+            await loadDevices(); // Refresh UI
+        } else {
+            alert('No saved LED colors found for any zones in this device. Use the 🎛️ button on each zone to set individual LED colors first.');
+        }
+    } catch (error) {
+        console.error('Error enabling LED colors for device:', error);
+    }
 }

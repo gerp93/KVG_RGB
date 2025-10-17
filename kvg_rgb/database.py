@@ -75,6 +75,29 @@ class ColorDatabase:
                     locked INTEGER DEFAULT 0
                 )
             ''')
+            
+            # Create led_colors table for individual LED control
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS led_colors (
+                    device_index INTEGER NOT NULL,
+                    zone_index INTEGER NOT NULL,
+                    led_index INTEGER NOT NULL,
+                    r INTEGER NOT NULL,
+                    g INTEGER NOT NULL,
+                    b INTEGER NOT NULL,
+                    PRIMARY KEY (device_index, zone_index, led_index)
+                )
+            ''')
+            
+            # Create led_control_enabled table to track if LED-level control is active
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS led_control_enabled (
+                    device_index INTEGER NOT NULL,
+                    zone_index INTEGER NOT NULL,
+                    enabled INTEGER DEFAULT 0,
+                    PRIMARY KEY (device_index, zone_index)
+                )
+            ''')
             conn.commit()
             
             # Add friendly_name column if it doesn't exist (for existing databases)
@@ -483,3 +506,128 @@ class ColorDatabase:
             cursor = conn.cursor()
             cursor.execute('SELECT device_index, locked FROM device_locks')
             return {device_idx: bool(locked) for device_idx, locked in cursor.fetchall()}
+    
+    def set_led_color(self, device_index: int, zone_index: int, led_index: int, r: int, g: int, b: int):
+        """
+        Set color for an individual LED.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            led_index: Index of the LED within the zone
+            r, g, b: RGB color values (0-255)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO led_colors 
+                (device_index, zone_index, led_index, r, g, b)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (device_index, zone_index, led_index, r, g, b))
+            conn.commit()
+    
+    def get_led_colors(self, device_index: int, zone_index: int) -> dict:
+        """
+        Get all LED colors for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            
+        Returns:
+            Dictionary mapping LED index to RGB tuple
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT led_index, r, g, b FROM led_colors
+                WHERE device_index = ? AND zone_index = ?
+                ORDER BY led_index
+            ''', (device_index, zone_index))
+            return {led_idx: (r, g, b) for led_idx, r, g, b in cursor.fetchall()}
+    
+    def clear_led_colors(self, device_index: int, zone_index: int):
+        """
+        Clear all LED colors for a zone (revert to zone color).
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM led_colors
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            conn.commit()
+    
+    def set_zone_gradient(self, device_index: int, zone_index: int, led_count: int, 
+                         start_r: int, start_g: int, start_b: int,
+                         end_r: int, end_g: int, end_b: int):
+        """
+        Apply a gradient across all LEDs in a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            led_count: Number of LEDs in the zone
+            start_r, start_g, start_b: Starting RGB color
+            end_r, end_g, end_b: Ending RGB color
+        """
+        # First clear existing LED colors
+        self.clear_led_colors(device_index, zone_index)
+        
+        # Calculate and set gradient
+        for i in range(led_count):
+            if led_count == 1:
+                # Single LED, use start color
+                r, g, b = start_r, start_g, start_b
+            else:
+                # Interpolate between start and end colors
+                t = i / (led_count - 1)  # 0.0 to 1.0
+                r = int(start_r + (end_r - start_r) * t)
+                g = int(start_g + (end_g - start_g) * t)
+                b = int(start_b + (end_b - start_b) * t)
+            
+            self.set_led_color(device_index, zone_index, i, r, g, b)
+    
+    def set_led_control_enabled(self, device_index: int, zone_index: int, enabled: bool):
+        """
+        Enable or disable LED-level control for a zone.
+        When disabled, zone-level color takes precedence.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            enabled: True to enable LED control, False to use zone color
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO led_control_enabled 
+                (device_index, zone_index, enabled)
+                VALUES (?, ?, ?)
+            ''', (device_index, zone_index, 1 if enabled else 0))
+            conn.commit()
+    
+    def is_led_control_enabled(self, device_index: int, zone_index: int) -> bool:
+        """
+        Check if LED-level control is enabled for a zone.
+        
+        Args:
+            device_index: Index of the device
+            zone_index: Index of the zone
+            
+        Returns:
+            True if LED control is enabled, False otherwise
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT enabled FROM led_control_enabled
+                WHERE device_index = ? AND zone_index = ?
+            ''', (device_index, zone_index))
+            result = cursor.fetchone()
+            return bool(result[0]) if result else False
+

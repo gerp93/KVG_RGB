@@ -64,6 +64,11 @@ def create_app():
                         effect_params = effect_data[1] if effect_data else None
                         # Get zone color from database
                         zone_color = controller.db.get_color(idx, zone_idx)
+                        # Check if LED control is enabled
+                        led_control_enabled = controller.db.is_led_control_enabled(idx, zone_idx)
+                        # Check if there are saved LED colors
+                        led_colors = controller.db.get_led_colors(idx, zone_idx)
+                        has_led_colors = len(led_colors) > 0
                         # Check if zone is resizable by checking if it has the resize method
                         is_resizable = hasattr(zone, 'resize')
                         zones.append({
@@ -80,6 +85,8 @@ def create_app():
                             'color': {'r': zone_color[0], 'g': zone_color[1], 'b': zone_color[2]} if zone_color else None,
                             'effect': effect_type,
                             'effect_params': effect_params,
+                            'led_control_enabled': led_control_enabled,
+                            'has_led_colors': has_led_colors,
                             'excluded': controller.config.is_zone_excluded(device.name, zone_idx)
                         })
                 
@@ -164,6 +171,10 @@ def create_app():
             
             controller = get_controller()
             controller.set_zone_color(device_index, zone_index, r, g, b)
+            
+            # Disable LED-level control when zone color is set
+            # This preserves LED colors in DB but zone color takes precedence
+            controller.db.set_led_control_enabled(device_index, zone_index, False)
             
             return jsonify({'success': True})
         except Exception as e:
@@ -553,6 +564,313 @@ def create_app():
             locks = controller.db.get_all_device_locks()
             return jsonify({'success': True, 'locks': locks})
         except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/leds', methods=['GET'])
+    def get_zone_leds(device_index, zone_index):
+        """Get LED colors for a zone"""
+        try:
+            controller = get_controller()
+            led_colors = controller.db.get_led_colors(device_index, zone_index)
+            led_control_enabled = controller.db.is_led_control_enabled(device_index, zone_index)
+            # Convert to list format: [{index: 0, r: 255, g: 0, b: 0}, ...]
+            leds = [{'index': idx, 'r': r, 'g': g, 'b': b} 
+                   for idx, (r, g, b) in sorted(led_colors.items())]
+            return jsonify({'success': True, 'leds': leds, 'enabled': led_control_enabled})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/led/<int:led_index>/color', methods=['POST'])
+    def set_led_color(device_index, zone_index, led_index):
+        """Set color for an individual LED"""
+        try:
+            data = request.json
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            
+            controller = get_controller()
+            
+            # Save to database
+            controller.db.set_led_color(device_index, zone_index, led_index, r, g, b)
+            
+            # Enable LED-level control for this zone
+            controller.db.set_led_control_enabled(device_index, zone_index, True)
+            
+            # Apply to hardware
+            device = controller.client.devices[device_index]
+            zone = device.zones[zone_index]
+            
+            # Get all LED colors for this zone
+            led_colors = controller.db.get_led_colors(device_index, zone_index)
+            
+            # Create LED color array - use zone.leds instead of zone.leds_count
+            from openrgb.utils import RGBColor
+            colors = []
+            num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+            for i in range(num_leds):
+                if i in led_colors:
+                    led_r, led_g, led_b = led_colors[i]
+                    colors.append(RGBColor(led_r, led_g, led_b))
+                else:
+                    # Use zone color if no LED color is set
+                    zone_color = controller.db.get_color(device_index, zone_index)
+                    if zone_color:
+                        colors.append(RGBColor(*zone_color))
+                    else:
+                        colors.append(RGBColor(0, 0, 0))
+            
+            # Set zone to Direct mode and apply colors
+            if device.active_mode != 0:  # 0 is usually Direct mode
+                # Try to find and set Direct mode
+                for i, mode in enumerate(device.modes):
+                    if 'direct' in mode.name.lower():
+                        device.set_mode(i)
+                        print(f"✓ Set device to Direct mode")
+                        break
+            
+            # Set LEDs
+            print(f"🎨 Setting {len(colors)} LED colors for device {device_index}, zone {zone_index}")
+            for idx, color in enumerate(colors):
+                print(f"  LED {idx}: {color}")
+            zone.set_colors(colors)
+            device.show()
+            print(f"✅ LED colors applied successfully")
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f"ERROR setting LED color: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/led/<int:led_index>/flash', methods=['POST'])
+    def flash_single_led(device_index, zone_index, led_index):
+        """Flash a single LED to identify its location"""
+        try:
+            from openrgb.utils import RGBColor
+            import time
+            
+            controller = get_controller()
+            device = controller.client.devices[device_index]
+            zone = device.zones[zone_index]
+            
+            # Get current LED colors
+            led_colors = controller.db.get_led_colors(device_index, zone_index)
+            num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+            
+            # Store original color of the LED
+            original_color = led_colors.get(led_index)
+            if not original_color:
+                # If no saved color, get from zone color
+                zone_color = controller.db.get_color(device_index, zone_index)
+                original_color = zone_color if zone_color else (0, 0, 0)
+            
+            # Create colors array with all LEDs at their current state
+            colors = []
+            for i in range(num_leds):
+                if i in led_colors:
+                    colors.append(RGBColor(*led_colors[i]))
+                else:
+                    zone_color = controller.db.get_color(device_index, zone_index)
+                    colors.append(RGBColor(*zone_color) if zone_color else RGBColor(0, 0, 0))
+            
+            # Set zone to Direct mode
+            if device.active_mode != 0:
+                for i, mode in enumerate(device.modes):
+                    if 'direct' in mode.name.lower():
+                        device.set_mode(i)
+                        break
+            
+            # Flash sequence: 3 flashes
+            for _ in range(3):
+                # Turn LED white
+                colors[led_index] = RGBColor(255, 255, 255)
+                zone.set_colors(colors)
+                device.show()
+                time.sleep(0.15)
+                
+                # Turn LED off
+                colors[led_index] = RGBColor(0, 0, 0)
+                zone.set_colors(colors)
+                device.show()
+                time.sleep(0.15)
+            
+            # Restore original color
+            colors[led_index] = RGBColor(*original_color)
+            zone.set_colors(colors)
+            device.show()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f"ERROR flashing LED: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/gradient', methods=['POST'])
+    def set_zone_gradient(device_index, zone_index):
+        """Apply a gradient to a zone"""
+        try:
+            data = request.json
+            start_r = int(data['start_r'])
+            start_g = int(data['start_g'])
+            start_b = int(data['start_b'])
+            end_r = int(data['end_r'])
+            end_g = int(data['end_g'])
+            end_b = int(data['end_b'])
+            
+            controller = get_controller()
+            device = controller.client.devices[device_index]
+            zone = device.zones[zone_index]
+            
+            # Get LED count
+            num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+            
+            # Apply gradient in database
+            controller.db.set_zone_gradient(
+                device_index, zone_index, num_leds,
+                start_r, start_g, start_b,
+                end_r, end_g, end_b
+            )
+            
+            # Enable LED-level control for this zone
+            controller.db.set_led_control_enabled(device_index, zone_index, True)
+            
+            # Get gradient colors and apply to hardware
+            from openrgb.utils import RGBColor
+            led_colors = controller.db.get_led_colors(device_index, zone_index)
+            colors = [RGBColor(*led_colors.get(i, (0, 0, 0))) for i in range(num_leds)]
+            
+            # Set zone to Direct mode
+            if device.active_mode != 0:
+                for i, mode in enumerate(device.modes):
+                    if 'direct' in mode.name.lower():
+                        device.set_mode(i)
+                        break
+            
+            # Apply colors
+            zone.set_colors(colors)
+            device.show()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f"ERROR applying gradient: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/leds/fill', methods=['POST'])
+    def fill_zone_leds(device_index, zone_index):
+        """Set all LEDs in a zone to the same color"""
+        try:
+            data = request.json
+            r = int(data['r'])
+            g = int(data['g'])
+            b = int(data['b'])
+            
+            controller = get_controller()
+            device = controller.client.devices[device_index]
+            zone = device.zones[zone_index]
+            
+            # Get LED count
+            num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+            
+            # Set all LEDs to the same color in database
+            for i in range(num_leds):
+                controller.db.set_led_color(device_index, zone_index, i, r, g, b)
+            
+            # Enable LED-level control for this zone
+            controller.db.set_led_control_enabled(device_index, zone_index, True)
+            
+            # Apply to hardware - much faster than individual updates
+            from openrgb.utils import RGBColor
+            color = RGBColor(r, g, b)
+            colors = [color] * num_leds
+            
+            # Set zone to Direct mode
+            if device.active_mode != 0:
+                for i, mode in enumerate(device.modes):
+                    if 'direct' in mode.name.lower():
+                        device.set_mode(i)
+                        break
+            
+            # Apply colors in one operation
+            zone.set_colors(colors)
+            device.show()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f"ERROR filling LEDs: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/leds/clear', methods=['POST'])
+    def clear_zone_leds(device_index, zone_index):
+        """Clear individual LED colors and revert to zone color"""
+        try:
+            from openrgb.utils import RGBColor
+            controller = get_controller()
+            controller.db.clear_led_colors(device_index, zone_index)
+            
+            # Disable LED control
+            controller.db.set_led_control_enabled(device_index, zone_index, False)
+            
+            # Reapply zone color
+            zone_color = controller.db.get_color(device_index, zone_index)
+            if zone_color:
+                device = controller.client.devices[device_index]
+                zone = device.zones[zone_index]
+                zone.set_color(RGBColor(*zone_color))
+                device.show()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/zone/<int:device_index>/<int:zone_index>/leds/toggle', methods=['POST'])
+    def toggle_led_control(device_index, zone_index):
+        """Toggle LED-level control on/off for a zone"""
+        try:
+            from openrgb.utils import RGBColor
+            controller = get_controller()
+            current_state = controller.db.is_led_control_enabled(device_index, zone_index)
+            new_state = not current_state
+            
+            controller.db.set_led_control_enabled(device_index, zone_index, new_state)
+            
+            # Apply appropriate colors to hardware
+            device = controller.client.devices[device_index]
+            zone = device.zones[zone_index]
+            
+            if new_state:
+                # Re-enable LED control - apply saved LED colors
+                led_colors = controller.db.get_led_colors(device_index, zone_index)
+                if led_colors:
+                    num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+                    colors = []
+                    for i in range(num_leds):
+                        if i in led_colors:
+                            colors.append(RGBColor(*led_colors[i]))
+                        else:
+                            zone_color = controller.db.get_color(device_index, zone_index)
+                            colors.append(RGBColor(*zone_color) if zone_color else RGBColor(0, 0, 0))
+                    zone.set_colors(colors)
+                    device.show()
+            else:
+                # Disable LED control - apply zone color
+                zone_color = controller.db.get_color(device_index, zone_index)
+                if zone_color:
+                    zone.set_color(RGBColor(*zone_color))
+                    device.show()
+            
+            return jsonify({'success': True, 'enabled': new_state})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
     # Initialize and restore colors on startup

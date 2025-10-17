@@ -19,64 +19,69 @@
 ✅ Per-zone color picker buttons
 ✅ UI reorganization (selection status, Reset All button)
 ✅ Old effects section removed
+✅ Selection status pipe-delimited format (Task 1)
+✅ Recent colors section with database persistence (Task 2)
+✅ Device lock/toggle for zone controls (Task 3)
+✅ Individual LED control & gradients (Task 4)
+
+## Known Issues
+
+### Flash Feature Limitations ⚠️
+**Issue**: Zone flash and individual LED flash don't work properly on keyboards
+- Flash functionality works fine on other devices (motherboards, etc.)
+- Keyboard zones/LEDs don't visibly flash when triggered
+- Likely due to keyboard firmware/driver handling
+- **Workaround**: Use for non-keyboard devices only
+- **Priority**: LOW - Device-specific limitation
+- **Status**: DOCUMENTED, not fixing for now
 
 ## Planned Features
 
-### 1. Selection Status Display Format 🎯
-**Purpose**: Make selection status more compact
-- Change selection count from multi-line to pipe-delimited format
-- Example: "3 Devices | 7 Zones | 142 LEDs" (similar to device cards)
-- Reduce vertical space in color control panel
-- **Priority**: HIGH - Quick UI polish before commit
+### 1. Configuration Profiles 💾
+**Purpose**: Save and load different color configurations
+- Save entire device/zone/LED configurations as named profiles
+- Profiles should be nestable (device-level, zone-level, overall)
+- Quick switching between profiles (Gaming, Work, Relaxing, etc.)
+- Export/import profiles for sharing
+- **Priority**: HIGH - Frequently requested feature
 - **Status**: TODO
 
-### 2. Recent Colors Section 🎨
-**Purpose**: Quick access to recently used custom colors
-- Add "Recent Colors" section under "Quick Colors"
-- Store last 8-10 custom colors selected via color picker
-- Display as color swatches (similar to quick colors)
-- Click to apply recent color
-- Persist in localStorage or database
-- **Priority**: MEDIUM - Nice quality of life feature
+### 2. Favorite Colors & Gradients ⭐
+**Purpose**: Quick access to frequently used colors and gradients
+- Save favorite individual colors (beyond recent colors)
+- Save favorite gradient combinations with names
+- Organize in favorites section with custom names/tags
+- **Priority**: MEDIUM - Nice UX enhancement
 - **Status**: TODO
 
-### 3. Device Lock/Toggle for Zone Controls 🔒
-**Purpose**: Simplify UI by treating entire device as single unit when desired
-- Add lock/unlock toggle button on each device card
-- **Locked Mode**: 
-  - Show device-level controls (color picker, brightness, saturation, effect selector)
-  - Apply changes to ALL zones at once
-  - Hide individual zone controls completely
-  - Don't display zone rows at all
-- **Unlocked Mode** (current behavior):
-  - Show all zones with individual controls
-  - Per-zone color pickers, sliders, effect selectors
-- Benefits: Cleaner UI for devices you want uniform, per-zone control when needed
-- **Priority**: MEDIUM-HIGH - Significant UX improvement
+### 3. Pre-made Gradient Library 🌈
+**Purpose**: Quick gradient selection without manual color picking
+- Pre-defined gradients: Rainbow, Fire, Ocean, Sunset, Purple-Blue, etc.
+- Visual preview of each gradient
+- Click to apply to selected zone
+- Expandable library
+- **Priority**: MEDIUM - Good visual appeal
 - **Status**: TODO
 
-### 4. Individual LED Control & Gradients ⏳
-**Purpose**: Fine-grained control for advanced effects
-- Add "Advanced" mode for each zone
-- Show individual LED grid/list
-- Color picker for each LED
-- Gradient generator (start color → end color)
-- Pattern options (alternating, wave, etc.)
-- **Priority**: LOW - Advanced feature, can wait
-- **Status**: TODO
+### Future Enhancements 🚀
+**Ideas for future development**:
+- LED pattern library (save/load custom LED patterns)
+- Scheduling (time-based color changes)
+- Integration with other apps (game events, music visualization, etc.)
+- **Priority**: Future consideration
+- **Status**: Ideas only
 
 ## Implementation Order (Next Steps)
 
-### Phase 1 - Pre-Commit Polish 🎯
-1. **Selection Status Format** - Quick 5-minute change
-2. Commit current UI improvements
+### All Current Tasks Complete! ✅
+All planned features from Tasks 1-4 have been implemented:
+- ✅ Task 1: Pipe-delimited selection status
+- ✅ Task 2: Recent colors with database
+- ✅ Task 3: Device lock/toggle
+- ✅ Task 4: Individual LED control & gradients
 
-### Phase 2 - Quality of Life Enhancements 🎨
-3. **Recent Colors Section** - Moderate complexity, good UX
-4. **Device Lock Toggle** - More complex, significant UX improvement
-
-### Phase 3 - Advanced Features 🚀
-5. **Individual LED Control** - Most complex, advanced users only
+### Ready for Future Development 🚀
+Next features will be determined based on user feedback and needs.
 
 ## Technical Notes
 
@@ -103,6 +108,34 @@ CREATE TABLE effects (
     effect_params TEXT,
     PRIMARY KEY (device_index, zone_index)
 );
+
+-- ✅ Recent colors table
+CREATE TABLE recent_colors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    r INTEGER,
+    g INTEGER,
+    b INTEGER,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ✅ LED colors table (individual LED control)
+CREATE TABLE led_colors (
+    device_index INTEGER,
+    zone_index INTEGER,
+    led_index INTEGER,
+    r INTEGER,
+    g INTEGER,
+    b INTEGER,
+    PRIMARY KEY (device_index, zone_index, led_index)
+);
+
+-- ✅ LED control enabled state
+CREATE TABLE led_control_enabled (
+    device_index INTEGER,
+    zone_index INTEGER,
+    enabled INTEGER DEFAULT 0,
+    PRIMARY KEY (device_index, zone_index)
+);
 ```
 
 ### Completed API Endpoints
@@ -112,15 +145,17 @@ CREATE TABLE effects (
 - ✅ `POST /api/zone/brightness` - Set brightness/saturation
 - ✅ `POST /api/zone/effect` - Set zone effect
 - ✅ `POST /api/zone/color` - Set zone color
-
-### Future API Endpoints Needed
-- `POST /api/device/lock` - Toggle device lock state
-- `POST /api/device/color` - Set color for locked device (all zones)
-- `POST /api/device/brightness` - Set brightness for locked device
-- `POST /api/device/effect` - Set effect for locked device
-- `GET /api/colors/recent` - Get recent custom colors
-- `POST /api/colors/recent` - Save recent custom color
-- `POST /api/zone/led/{led_index}/color` - Set individual LED color
+- ✅ `POST /api/device/lock` - Toggle device lock state
+- ✅ `GET /api/device/locks` - Get all device lock states
+- ✅ `GET /api/colors/recent` - Get recent custom colors
+- ✅ `POST /api/colors/recent` - Save recent custom color
+- ✅ `GET /api/zone/<device>/<zone>/leds` - Get LED colors and state
+- ✅ `POST /api/zone/<device>/<zone>/led/<led>/color` - Set individual LED color
+- ✅ `POST /api/zone/<device>/<zone>/led/<led>/flash` - Flash individual LED
+- ✅ `POST /api/zone/<device>/<zone>/gradient` - Apply gradient to zone LEDs
+- ✅ `POST /api/zone/<device>/<zone>/leds/fill` - Set all LEDs to same color (fast)
+- ✅ `POST /api/zone/<device>/<zone>/leds/clear` - Clear LED colors
+- ✅ `POST /api/zone/<device>/<zone>/leds/toggle` - Toggle LED control on/off
 
 ---
 
