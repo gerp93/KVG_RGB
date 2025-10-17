@@ -9,13 +9,37 @@
 
 ## Installation
 
-### Fresh Installation
+### Windows - GUI Installer (Easiest)
+
+**For users who prefer not to use the command line:**
+
+1. Download both files from the release:
+   - `KVG_RGB_Installer.exe`
+   - `kvg_rgb-X.X.X-py3-none-any.whl`
+
+2. Place both files in the same folder
+
+3. Double-click `KVG_RGB_Installer.exe`
+
+4. Click "Install / Upgrade"
+
+The installer will:
+- ✅ Check Python installation
+- ✅ Close any running instances
+- ✅ Install or upgrade automatically
+- ✅ Show installation progress
+
+**Note:** Windows may show a SmartScreen warning. Click "More info" → "Run anyway" (the app is safe, just not signed).
+
+### Command Line Installation (All Platforms)
+
+#### Fresh Installation
 
 ```bash
 pip install kvg_rgb-X.X.X-py3-none-any.whl
 ```
 
-### Upgrading from Previous Version
+#### Upgrading from Previous Version
 
 **Option 1: Automatic upgrade (Recommended)**
 ```bash

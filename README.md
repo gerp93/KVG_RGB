@@ -20,7 +20,13 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 ### For End Users (Distributed Package)
 
-If you received a `.whl` file from a release:
+**Windows - GUI Installer (Recommended for non-technical users):**
+
+1. Download `KVG_RGB_Installer.exe` and the `.whl` file from the latest release
+2. Put both files in the same folder
+3. Run `KVG_RGB_Installer.exe` and click "Install"
+
+**All Platforms - Command Line:**
 
 ```bash
 # Fresh installation
