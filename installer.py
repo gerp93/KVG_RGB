@@ -42,8 +42,8 @@ class InstallerGUI:
         status_frame = tk.Frame(root)
         status_frame.pack(pady=20, padx=20, fill="x")
         
-        # Check Python
-        self.python_status = tk.Label(status_frame, text="🔍 Checking Python...", anchor="w")
+        # Check pip
+        self.python_status = tk.Label(status_frame, text="🔍 Checking pip...", anchor="w")
         self.python_status.pack(fill="x")
         
         # Check wheel file
@@ -113,20 +113,21 @@ class InstallerGUI:
     
     def perform_checks(self):
         """Perform pre-installation checks"""
-        # Check Python
+        # Check pip (more reliable than checking python)
         try:
             result = subprocess.run(
-                ["python", "--version"],
+                ["pip", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             version = result.stdout.strip()
-            self.python_status.config(text=f"✅ Python found: {version}", fg="green")
-            self.log_message(f"Python check: {version}")
+            self.python_status.config(text=f"✅ pip found: {version}", fg="green")
+            self.log_message(f"pip check: {version}")
         except Exception as e:
-            self.python_status.config(text="❌ Python not found in PATH", fg="red")
-            self.log_message(f"ERROR: Python not found - {e}")
+            self.python_status.config(text="❌ pip not found in PATH", fg="red")
+            self.log_message(f"ERROR: pip not found - {e}")
+            self.log_message("Please ensure Python is installed with pip enabled")
             self.install_btn.config(state="disabled")
             return
         
