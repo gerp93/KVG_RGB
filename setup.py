@@ -26,6 +26,7 @@ setup(
             'static/*.css',
             'static/*.js',
             'templates/*.html',
+            'scripts/*.bat',
         ],
     },
     install_requires=[

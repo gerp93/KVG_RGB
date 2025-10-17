@@ -3,6 +3,7 @@ include requirements.txt
 include LICENSE
 recursive-include kvg_rgb/static *.css *.js
 recursive-include kvg_rgb/templates *.html
+recursive-include kvg_rgb/scripts *.bat
 recursive-include docs *.md
 global-exclude __pycache__
 global-exclude *.py[co]
