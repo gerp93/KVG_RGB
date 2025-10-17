@@ -434,6 +434,10 @@ Examples:
     autostart_parser.add_argument('--disable', action='store_true', help='Disable autostart')
     autostart_parser.add_argument('--status', action='store_true', help='Check autostart status')
     
+    # Settings manager (Windows only)
+    if sys.platform == 'win32':
+        subparsers.add_parser('settings', help='Open settings & installer manager (Windows only)')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -470,6 +474,56 @@ Examples:
         list_excluded_devices()
     elif args.command == 'autostart':
         autostart_command(args)
+    elif args.command == 'settings':
+        settings_command()
+
+
+def settings_command():
+    """Launch the settings manager GUI (Windows only)"""
+    if sys.platform != 'win32':
+        print("Error: Settings manager is only available on Windows.")
+        sys.exit(1)
+    
+    try:
+        # Import and run the installer/settings manager
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        # Try to find installer.py in the package
+        package_dir = Path(__file__).parent.parent
+        installer_path = package_dir / 'installer.py'
+        
+        if installer_path.exists():
+            # Run the installer as a separate process
+            subprocess.Popen([sys.executable, str(installer_path)])
+            print("Settings manager launched!")
+        else:
+            # Fall back to trying to import it
+            try:
+                import tkinter as tk
+                # Import from installed location
+                spec_path = Path(__file__).parent.parent / 'installer.py'
+                if not spec_path.exists():
+                    print("Error: Could not find settings manager.")
+                    print("Please use the standalone installer executable.")
+                    sys.exit(1)
+                    
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("installer", spec_path)
+                installer = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(installer)
+                
+                root = tk.Tk()
+                app = installer.RGBControllerManager(root)
+                root.mainloop()
+            except ImportError as e:
+                print(f"Error: Could not launch settings manager: {e}")
+                print("Please download the installer from GitHub.")
+                sys.exit(1)
+    except Exception as e:
+        print(f"Error launching settings manager: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

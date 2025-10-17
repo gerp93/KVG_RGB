@@ -909,6 +909,25 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error restoring static colors: {e}")
     
+    @app.route('/api/settings/launch', methods=['POST'])
+    def launch_settings():
+        """Launch the settings manager (Windows only)"""
+        import platform
+        if platform.system() != 'Windows':
+            return jsonify({'success': False, 'error': 'Settings manager is only available on Windows'}), 400
+        
+        try:
+            import subprocess
+            import sys
+            
+            # Launch kvg-rgb settings command
+            subprocess.Popen([sys.executable, '-m', 'kvg_rgb.cli', 'settings'])
+            
+            return jsonify({'success': True, 'message': 'Settings manager launched'})
+        except Exception as e:
+            logger.error(f"Error launching settings: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     return app
 
 

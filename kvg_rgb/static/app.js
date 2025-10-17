@@ -1766,3 +1766,23 @@ async function enableLEDColorsForDevice(deviceIndex) {
         console.error('Error enabling LED colors for device:', error);
     }
 }
+
+// Open settings manager (Windows only)
+async function openSettings() {
+    try {
+        const response = await fetch('/api/settings/launch', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showStatus('Settings manager launched! Check your taskbar.', 'success');
+        } else {
+            showStatus(data.error || 'Failed to launch settings manager', 'error');
+        }
+    } catch (error) {
+        console.error('Error launching settings:', error);
+        showStatus('Error: Could not launch settings manager. This feature is Windows-only.', 'error');
+    }
+}

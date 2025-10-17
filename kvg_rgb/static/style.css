@@ -35,6 +35,13 @@ body {
 header {
     text-align: center;
     margin-bottom: 2rem;
+    position: relative;
+}
+
+.settings-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
 }
 
 header h1 {
