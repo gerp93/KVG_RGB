@@ -22,15 +22,18 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 If you received a `.whl` file from a release:
 
-```cmd
-# Easy installation with auto-upgrade
-install.bat
-
-# Or manual installation
+```bash
+# Fresh installation
 pip install kvg_rgb-X.X.X-py3-none-any.whl
+
+# Upgrade from previous version
+pip install --upgrade --force-reinstall kvg_rgb-X.X.X-py3-none-any.whl
 ```
 
-**Your settings are preserved across updates!** All data is stored in `%USERPROFILE%\.kvg_rgb\`
+**Your settings are preserved across updates!** 
+- All data is stored in `~/.kvg_rgb/` (or `%USERPROFILE%\.kvg_rgb\` on Windows)
+- Colors, LED configurations, and profiles persist across updates
+- Works on Windows, macOS, and Linux
 
 📦 **See the full [Installation Guide](docs/INSTALL.md)** for detailed instructions.
 

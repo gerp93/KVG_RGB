@@ -1,8 +1,6 @@
 include README.md
 include requirements.txt
 include LICENSE
-include install.bat
-include uninstall.bat
 recursive-include kvg_rgb/static *.css *.js
 recursive-include kvg_rgb/templates *.html
 recursive-include kvg_rgb/scripts *.bat

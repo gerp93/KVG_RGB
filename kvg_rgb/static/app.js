@@ -329,7 +329,7 @@ function displayDevices() {
                                 🔴
                             </button>
                         </div>
-                        <div class="device-disabled-msg">Click � to enable RGB control</div>
+                        <div class="device-disabled-msg">Click 🔴 to enable RGB control</div>
                     </div>
                 `).join('')}
             </div>

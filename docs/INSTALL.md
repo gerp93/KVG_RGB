@@ -2,44 +2,39 @@
 
 ## Prerequisites
 
-- **Windows 10/11**
-- **Python 3.7 or higher** installed and in PATH
+- **Python 3.7 or higher** (Windows, macOS, or Linux)
 - **OpenRGB** must be installed and running
   - Download from: https://openrgb.org/
   - Enable SDK Server in OpenRGB Settings
 
-## Installation Methods
+## Installation
 
-### Method 1: Using Install Script (Recommended)
+### Fresh Installation
 
-1. **Download the package**:
-   - Get `kvg_rgb-X.X.X-py3-none-any.whl` from the latest release
-   - Get `install.bat` (included with the wheel)
+```bash
+pip install kvg_rgb-X.X.X-py3-none-any.whl
+```
 
-2. **Run the installer**:
-   ```cmd
-   install.bat
-   ```
-   
-   The script will:
-   - ✅ Check for Python
-   - ✅ Auto-uninstall old versions if present
-   - ✅ Install the new version
-   - ✅ Preserve all your settings
-   - ✅ Offer to start the web interface
+### Upgrading from Previous Version
 
-### Method 2: Manual Installation
+**Option 1: Automatic upgrade (Recommended)**
+```bash
+pip install --upgrade --force-reinstall kvg_rgb-X.X.X-py3-none-any.whl
+```
 
-```powershell
-# If upgrading, uninstall old version first
+**Option 2: Manual upgrade**
+```bash
+# Uninstall old version
 pip uninstall kvg-rgb -y
 
 # Install new version
 pip install kvg_rgb-X.X.X-py3-none-any.whl
-
-# Start the web interface
-kvg-rgb web
 ```
+
+**✅ Your settings are automatically preserved!**
+- All data stored in `~/.kvg_rgb/` (Linux/macOS) or `%USERPROFILE%\.kvg_rgb\` (Windows)
+- Colors, LED configurations, and profiles persist across updates
+- Database is never touched during uninstall/upgrade
 
 ## First Time Setup
 
@@ -55,52 +50,32 @@ After installation:
    kvg-rgb autostart
    ```
 
-## Upgrading
-
-### Using Install Script
-Simply run `install.bat` with the new wheel file. Your settings are automatically preserved.
-
-### Manual Upgrade
-```powershell
-pip uninstall kvg-rgb -y
-pip install kvg_rgb-NEW_VERSION-py3-none-any.whl
-```
-
-**Your data is safe!** All settings are stored in `%USERPROFILE%\.kvg_rgb\` and persist across:
-- Package updates
-- Uninstalls/reinstalls  
-- Python version changes
-
 ## Uninstalling
 
-### Using Uninstall Script
-```cmd
-uninstall.bat
-```
+```bash
+# Remove the package
+pip uninstall kvg-rgb
 
-The script will:
-- Remove the package
-- Optionally delete your saved data
-- Clean up autostart shortcuts
+# Optionally remove your data (colors, settings, profiles)
+# Linux/macOS:
+rm -rf ~/.kvg_rgb
 
-### Manual Uninstall
-```powershell
-# Remove package
-pip uninstall kvg-rgb -y
+# Windows (PowerShell):
+Remove-Item -Recurse -Force "$env:USERPROFILE\.kvg_rgb"
 
-# Optionally remove data
+# Windows (Command Prompt):
 rmdir /s /q "%USERPROFILE%\.kvg_rgb"
 ```
+
+**Note:** Uninstalling the package does NOT delete your data by default. Your settings remain in `~/.kvg_rgb/` so you can reinstall later without losing anything.
 
 ## Troubleshooting
 
 ### "Python is not installed or not in PATH"
 - Install Python from https://python.org
-- Make sure to check "Add Python to PATH" during installation
-
-### "No wheel file found"
-- Make sure the `.whl` file is in the same folder as `install.bat`
-- Download it from the latest GitHub release
+- **Windows**: Make sure to check "Add Python to PATH" during installation
+- **Linux**: Use your package manager (`apt install python3` or `dnf install python3`)
+- **macOS**: Use Homebrew (`brew install python3`)
 
 ### "Could not connect to OpenRGB"
 1. Make sure OpenRGB is running
@@ -111,12 +86,15 @@ For more help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## What Gets Installed
 
-- **Command**: `kvg-rgb` - Main CLI tool
+- **Command**: `kvg-rgb` - Main CLI tool (cross-platform)
 - **Web Interface**: Accessible at `http://localhost:5000`
-- **Data Directory**: `%USERPROFILE%\.kvg_rgb\`
-  - `rgb_controller.db` - Your colors and settings
-  - `config.json` - Configuration
-- **Startup Script**: `kvg_rgb\scripts\start_kvg_rgb.bat`
+- **Data Directory**: 
+  - **Linux/macOS**: `~/.kvg_rgb/`
+  - **Windows**: `%USERPROFILE%\.kvg_rgb\`
+  - Contains:
+    - `rgb_controller.db` - Your colors and settings
+    - `config.json` - Configuration (auto-created)
+- **Startup Script** (Windows only): `kvg_rgb\scripts\start_kvg_rgb.bat`
 
 ## Next Steps
 
