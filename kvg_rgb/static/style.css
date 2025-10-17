@@ -497,6 +497,31 @@ header p {
     text-align: right;
 }
 
+/* Device-Level Controls (When Locked) */
+.device-controls-container {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid var(--border-color);
+}
+
+.device-control-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.device-control-row label {
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.device-sliders {
+    display: flex;
+    gap: 2rem;
+    padding: 0.5rem 0;
+}
+
 .zone-info-compact {
     flex: 1;
 }

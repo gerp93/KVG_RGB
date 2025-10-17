@@ -4,6 +4,7 @@ let currentEffect = null;
 let selectedItems = []; // Array of {type: 'device'|'zone', deviceIndex, zoneIndex (optional)}
 let recentColors = []; // Array of recent RGB colors
 const MAX_RECENT_COLORS = 8; // Maximum number of recent colors to store
+let deviceLocks = {}; // Object mapping device index to lock state
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,15 +16,26 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load devices from API
 async function loadDevices() {
     try {
-        const response = await fetch('/api/devices');
-        const data = await response.json();
+        const [devicesResponse, locksResponse] = await Promise.all([
+            fetch('/api/devices'),
+            fetch('/api/device/locks')
+        ]);
         
-        if (data.success) {
-            devices = data.devices;
+        const devicesData = await devicesResponse.json();
+        const locksData = await locksResponse.json();
+        
+        if (devicesData.success) {
+            devices = devicesData.devices;
+            
+            // Load device lock states
+            if (locksData.success) {
+                deviceLocks = locksData.locks;
+            }
+            
             displayDevices();
             updateStatus('✓ Connected to OpenRGB', 'success');
         } else {
-            updateStatus('✗ Error: ' + data.error, 'error');
+            updateStatus('✗ Error: ' + devicesData.error, 'error');
         }
     } catch (error) {
         updateStatus('✗ Failed to connect to OpenRGB server', 'error');
@@ -40,7 +52,9 @@ function displayDevices() {
     const disabledDevices = devices.filter(d => d.excluded);
     
     // Render enabled devices
-    const enabledHTML = enabledDevices.map(device => `
+    const enabledHTML = enabledDevices.map(device => {
+        const isLocked = deviceLocks[device.index] || false;
+        return `
         <div class="device-card-vertical" id="device-card-${device.index}">
             <!-- Device Header (Selectable) -->
             <div class="device-header-selectable ${isDeviceSelected(device.index) ? 'selected' : ''}" 
@@ -66,6 +80,11 @@ function displayDevices() {
                         <option value="cycle">🔄 Cycle</option>
                     </select>
                     <button class="device-toggle-mini" 
+                            onclick="event.stopPropagation(); toggleDeviceLock(${device.index})"
+                            title="${isLocked ? 'Unlock to show zones' : 'Lock to hide zones'}">
+                        ${isLocked ? '🔒' : '🔓'}
+                    </button>
+                    <button class="device-toggle-mini" 
                             onclick="event.stopPropagation(); toggleDevice('${device.name.replace(/'/g, "\\'")}', ${device.index})"
                             title="Disable this device">
                         🟢
@@ -73,7 +92,48 @@ function displayDevices() {
                 </div>
             </div>
             
-            ${device.zones.length > 0 ? `
+            ${isLocked ? `
+                <!-- Device-Level Controls (When Locked) -->
+                <div class="device-controls-container">
+                    <div class="device-control-row">
+                        <label>Device Color:</label>
+                        <input type="color" 
+                               class="color-picker-mini" 
+                               value="${device.zones[0] && device.zones[0].color ? rgbToHex(device.zones[0].color.r, device.zones[0].color.g, device.zones[0].color.b) : '#000000'}"
+                               onclick="event.stopPropagation()"
+                               onchange="setDeviceColorFromPicker(${device.index}, this.value)"
+                               title="Set color for all zones">
+                    </div>
+                    <div class="device-sliders">
+                        <div class="zone-slider-control">
+                            <label>💡</label>
+                            <input type="range" 
+                                   min="0" 
+                                   max="100" 
+                                   value="${device.zones[0]?.brightness || 100}"
+                                   class="zone-slider"
+                                   id="device-brightness-${device.index}"
+                                   oninput="updateDeviceSliderValue(${device.index}, 'brightness', this.value)"
+                                   onchange="applyDeviceBrightnessSaturation(${device.index})"
+                                   title="Brightness for all zones">
+                            <span class="zone-slider-value" id="device-brightness-value-${device.index}">${device.zones[0]?.brightness || 100}%</span>
+                        </div>
+                        <div class="zone-slider-control">
+                            <label>🎨</label>
+                            <input type="range" 
+                                   min="0" 
+                                   max="100" 
+                                   value="${device.zones[0]?.saturation || 100}"
+                                   class="zone-slider"
+                                   id="device-saturation-${device.index}"
+                                   oninput="updateDeviceSliderValue(${device.index}, 'saturation', this.value)"
+                                   onchange="applyDeviceBrightnessSaturation(${device.index})"
+                                   title="Saturation for all zones">
+                            <span class="zone-slider-value" id="device-saturation-value-${device.index}">${device.zones[0]?.saturation || 100}%</span>
+                        </div>
+                    </div>
+                </div>
+            ` : device.zones.length > 0 ? `
                 <!-- Zones List -->
                 <div class="zones-container">
                     ${device.zones.filter(z => !z.excluded).map((zone) => {
@@ -202,7 +262,8 @@ function displayDevices() {
                 </div>
             ` : ''}
         </div>
-    `).join('');
+    `;
+    }).join('');
     
     // Render disabled devices in collapsible section
     const disabledHTML = disabledDevices.length > 0 ? `
@@ -547,6 +608,8 @@ async function setZoneColorFromPicker(deviceIndex, zoneIndex, hexColor) {
         if (data.success) {
             updateStatus(`✓ Zone color updated to RGB(${r}, ${g}, ${b})`, 'success');
             await loadDevices(); // Refresh UI
+            // Save to recent colors
+            await saveRecentColor(r, g, b);
         } else {
             updateStatus('✗ Failed to set zone color: ' + data.error, 'error');
         }
@@ -729,9 +792,6 @@ async function applyColor() {
     const hex = colorPicker.value;
     const rgb = hexToRgb(hex);
     
-    // Save to recent colors
-    saveRecentColor(rgb.r, rgb.g, rgb.b);
-    
     try {
         // Group items by device to avoid conflicts
         const deviceIndices = new Set(selectedItems.filter(i => i.type === 'device').map(i => i.deviceIndex));
@@ -774,6 +834,12 @@ async function applyColor() {
         }
         
         updateStatus(`✓ Color applied to ${selectedItems.length} item(s)`, 'success');
+        
+        // Save to recent colors after successful application
+        console.log('About to save recent color:', rgb.r, rgb.g, rgb.b);
+        await saveRecentColor(rgb.r, rgb.g, rgb.b);
+        console.log('Recent color saved');
+        
     } catch (error) {
         updateStatus('✗ Failed to apply color', 'error');
         console.error('Error:', error);
@@ -1131,6 +1197,7 @@ function loadRecentColors() {
 
 async function saveRecentColor(r, g, b) {
     try {
+        console.log('Saving recent color:', r, g, b);
         const response = await fetch('/api/colors/recent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1138,9 +1205,12 @@ async function saveRecentColor(r, g, b) {
         });
         
         const data = await response.json();
+        console.log('Recent color save response:', data);
         if (data.success) {
             // Reload recent colors to get updated list
             loadRecentColors();
+        } else {
+            console.error('Failed to save recent color:', data.error);
         }
     } catch (error) {
         console.error('Error saving recent color:', error);
@@ -1166,4 +1236,84 @@ function updateRecentColorsDisplay() {
                         onclick="applyPresetColor(${color.r},${color.g},${color.b})" 
                         title="RGB(${color.r}, ${color.g}, ${color.b})"></button>`;
     }).join('');
+}
+
+// Device Lock/Toggle Functions
+async function toggleDeviceLock(deviceIndex) {
+    const currentLock = deviceLocks[deviceIndex] || false;
+    const newLock = !currentLock;
+    
+    try {
+        const response = await fetch(`/api/device/${deviceIndex}/lock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locked: newLock })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            deviceLocks[deviceIndex] = newLock;
+            displayDevices(); // Refresh display to show/hide zones
+        }
+    } catch (error) {
+        console.error('Error toggling device lock:', error);
+    }
+}
+
+async function setDeviceColorFromPicker(deviceIndex, hexColor) {
+    const rgb = hexToRgb(hexColor);
+    if (!rgb) return;
+    
+    try {
+        const response = await fetch('/api/color', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                r: rgb.r,
+                g: rgb.g,
+                b: rgb.b,
+                device_index: deviceIndex,
+                zone_index: null // null means all zones
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            await saveRecentColor(rgb.r, rgb.g, rgb.b);
+            loadDevices(); // Refresh to show new colors
+        }
+    } catch (error) {
+        console.error('Error setting device color:', error);
+    }
+}
+
+async function applyDeviceBrightnessSaturation(deviceIndex) {
+    const device = devices.find(d => d.index === deviceIndex);
+    if (!device) return;
+    
+    const brightness = parseInt(document.getElementById(`device-brightness-${deviceIndex}`).value);
+    const saturation = parseInt(document.getElementById(`device-saturation-${deviceIndex}`).value);
+    
+    try {
+        const response = await fetch('/api/brightness-saturation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                brightness: brightness,
+                saturation: saturation,
+                device_index: deviceIndex,
+                zone_index: null // null means all zones
+            })
+        });
+        
+        if (response.ok) {
+            loadDevices();
+        }
+    } catch (error) {
+        console.error('Error applying device brightness/saturation:', error);
+    }
+}
+
+function updateDeviceSliderValue(deviceIndex, type, value) {
+    document.getElementById(`device-${type}-value-${deviceIndex}`).textContent = value + '%';
 }

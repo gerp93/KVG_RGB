@@ -521,6 +521,40 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    @app.route('/api/device/<int:device_index>/lock', methods=['GET'])
+    def get_device_lock(device_index):
+        """Get device lock state"""
+        try:
+            controller = get_controller()
+            locked = controller.db.get_device_lock(device_index)
+            return jsonify({'success': True, 'locked': locked})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/device/<int:device_index>/lock', methods=['POST'])
+    def set_device_lock(device_index):
+        """Set device lock state"""
+        try:
+            data = request.json
+            locked = bool(data.get('locked', False))
+            
+            controller = get_controller()
+            controller.db.set_device_lock(device_index, locked)
+            
+            return jsonify({'success': True, 'locked': locked})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/device/locks', methods=['GET'])
+    def get_all_device_locks():
+        """Get all device lock states"""
+        try:
+            controller = get_controller()
+            locks = controller.db.get_all_device_locks()
+            return jsonify({'success': True, 'locks': locks})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     # Initialize and restore colors on startup
     @app.before_request
     def restore_static_colors_once():

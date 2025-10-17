@@ -67,6 +67,14 @@ class ColorDatabase:
                     UNIQUE(r, g, b)
                 )
             ''')
+            
+            # Create device_locks table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS device_locks (
+                    device_index INTEGER PRIMARY KEY,
+                    locked INTEGER DEFAULT 0
+                )
+            ''')
             conn.commit()
             
             # Add friendly_name column if it doesn't exist (for existing databases)
@@ -428,3 +436,50 @@ class ColorDatabase:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM recent_colors')
             conn.commit()
+    
+    def set_device_lock(self, device_index: int, locked: bool):
+        """
+        Set device lock state.
+        
+        Args:
+            device_index: Index of the device
+            locked: True to lock, False to unlock
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO device_locks (device_index, locked)
+                VALUES (?, ?)
+            ''', (device_index, 1 if locked else 0))
+            conn.commit()
+    
+    def get_device_lock(self, device_index: int) -> bool:
+        """
+        Get device lock state.
+        
+        Args:
+            device_index: Index of the device
+            
+        Returns:
+            True if locked, False if unlocked
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT locked FROM device_locks
+                WHERE device_index = ?
+            ''', (device_index,))
+            result = cursor.fetchone()
+            return bool(result[0]) if result else False
+    
+    def get_all_device_locks(self) -> dict:
+        """
+        Get all device lock states.
+        
+        Returns:
+            Dictionary mapping device_index to locked state
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT device_index, locked FROM device_locks')
+            return {device_idx: bool(locked) for device_idx, locked in cursor.fetchall()}
