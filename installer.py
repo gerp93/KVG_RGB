@@ -18,6 +18,9 @@ class InstallerGUI:
         self.root.geometry("600x500")
         self.root.resizable(False, False)
         
+        # Find Python executable
+        self.python_exe = self.find_python()
+        
         # Find the wheel file in the same directory as the installer
         self.wheel_file = self.find_wheel_file()
         
@@ -90,6 +93,51 @@ class InstallerGUI:
         # Perform initial checks
         self.root.after(100, self.perform_checks)
     
+    def find_python(self):
+        """Find Python executable in system"""
+        # Try common Python commands and locations
+        python_names = ['python', 'python3', 'py']
+        
+        for name in python_names:
+            try:
+                result = subprocess.run(
+                    [name, '--version'],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    shell=True
+                )
+                if result.returncode == 0:
+                    return name
+            except:
+                continue
+        
+        # Try to find via registry (Windows)
+        try:
+            import winreg
+            # Try HKEY_CURRENT_USER first
+            for root_key in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
+                try:
+                    key = winreg.OpenKey(root_key, r"SOFTWARE\Python\PythonCore")
+                    num_versions = winreg.QueryInfoKey(key)[0]
+                    
+                    for i in range(num_versions):
+                        version = winreg.EnumKey(key, i)
+                        try:
+                            install_key = winreg.OpenKey(key, f"{version}\\InstallPath")
+                            install_path = winreg.QueryValue(install_key, None)
+                            python_exe = os.path.join(install_path, "python.exe")
+                            if os.path.exists(python_exe):
+                                return python_exe
+                        except:
+                            continue
+                except:
+                    continue
+        except ImportError:
+            pass
+        
+        return None
+    
     def find_wheel_file(self):
         """Find the .whl file in the same directory as this script"""
         if getattr(sys, 'frozen', False):
@@ -113,21 +161,35 @@ class InstallerGUI:
     
     def perform_checks(self):
         """Perform pre-installation checks"""
-        # Check pip (more reliable than checking python)
+        # Check Python and pip
+        if not self.python_exe:
+            self.python_status.config(text="❌ Python not found", fg="red")
+            self.log_message("ERROR: Could not find Python installation")
+            self.log_message("Please install Python 3.7+ from https://python.org")
+            self.log_message("Make sure to check 'Add Python to PATH' during installation")
+            self.install_btn.config(state="disabled")
+            return
+        
         try:
             result = subprocess.run(
-                ["pip", "--version"],
+                [self.python_exe, "-m", "pip", "--version"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=10,
+                shell=True
             )
-            version = result.stdout.strip()
-            self.python_status.config(text=f"✅ pip found: {version}", fg="green")
-            self.log_message(f"pip check: {version}")
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                self.python_status.config(text=f"✅ Python + pip found: {version}", fg="green")
+                self.log_message(f"Python: {self.python_exe}")
+                self.log_message(f"pip: {version}")
+            else:
+                raise Exception("pip module not available")
         except Exception as e:
-            self.python_status.config(text="❌ pip not found in PATH", fg="red")
+            self.python_status.config(text="❌ pip not available", fg="red")
             self.log_message(f"ERROR: pip not found - {e}")
-            self.log_message("Please ensure Python is installed with pip enabled")
+            self.log_message(f"Python found at: {self.python_exe}")
+            self.log_message("Please reinstall Python with pip enabled")
             self.install_btn.config(state="disabled")
             return
         
@@ -144,10 +206,11 @@ class InstallerGUI:
         # Check existing installation
         try:
             result = subprocess.run(
-                ["pip", "show", "kvg-rgb"],
+                [self.python_exe, "-m", "pip", "show", "kvg-rgb"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=10,
+                shell=True
             )
             if result.returncode == 0:
                 # Extract version
@@ -192,11 +255,12 @@ class InstallerGUI:
             self.log_message("This may take a moment...\n")
             
             process = subprocess.Popen(
-                ["pip", "install", "--upgrade", "--force-reinstall", str(self.wheel_file)],
+                [self.python_exe, "-m", "pip", "install", "--upgrade", "--force-reinstall", str(self.wheel_file)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1
+                bufsize=1,
+                shell=True
             )
             
             # Stream output to log
