@@ -107,6 +107,24 @@ The web interface runs **locally on your machine** at `http://localhost:5000`. N
 
 To make KVG RGB start automatically when you log in to Windows:
 
+**Option 1: Automatic Setup (Easiest)**
+
+```powershell
+# Interactive setup - will guide you through the process
+kvg-rgb autostart
+
+# Or enable directly
+kvg-rgb autostart --enable
+
+# Check if autostart is enabled
+kvg-rgb autostart --status
+
+# Disable autostart
+kvg-rgb autostart --disable
+```
+
+**Option 2: Manual Setup**
+
 1. **Locate the startup script**:
    - After installation, find: `start_kvg_rgb.bat` in your Python installation
    - Typically located at: `C:\Python3XX\Lib\site-packages\kvg_rgb\scripts\start_kvg_rgb.bat`
@@ -124,7 +142,7 @@ To make KVG RGB start automatically when you log in to Windows:
 
 4. **Done!** The RGB controller will now start automatically (minimized in background) when you log in.
 
-To disable auto-start, simply delete the shortcut from the Startup folder.
+To disable auto-start, use `kvg-rgb autostart --disable` or delete the shortcut from the Startup folder.
 
 ### Command-Line Interface
 

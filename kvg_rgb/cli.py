@@ -289,6 +289,64 @@ def list_excluded_devices():
         sys.exit(1)
 
 
+def autostart_command(args):
+    """Configure Windows autostart"""
+    try:
+        from kvg_rgb.autostart import (
+            is_autostart_enabled,
+            create_startup_shortcut,
+            remove_startup_shortcut,
+            prompt_autostart_setup
+        )
+        
+        # If no flags provided, run interactive prompt
+        if not args.enable and not args.disable and not args.status:
+            prompt_autostart_setup()
+            return
+        
+        # Check status
+        if args.status:
+            if is_autostart_enabled():
+                print("\n✅ Autostart is ENABLED")
+                print("   The RGB controller starts automatically when you log in.\n")
+            else:
+                print("\n❌ Autostart is DISABLED")
+                print("   The RGB controller will NOT start automatically.\n")
+            return
+        
+        # Enable autostart
+        if args.enable:
+            if is_autostart_enabled():
+                print("\n✅ Autostart is already enabled")
+            else:
+                print("\n⏳ Enabling autostart...")
+                success, message = create_startup_shortcut()
+                if success:
+                    print(f"✅ Autostart enabled!")
+                    print(f"   Shortcut created at: {message}")
+                    print("   KVG RGB will start automatically when you log in.\n")
+                else:
+                    print(f"❌ Failed to enable autostart: {message}\n")
+                    sys.exit(1)
+        
+        # Disable autostart
+        if args.disable:
+            if not is_autostart_enabled():
+                print("\nℹ️  Autostart is already disabled")
+            else:
+                print("\n⏳ Disabling autostart...")
+                success, message = remove_startup_shortcut()
+                if success:
+                    print(f"✅ {message}\n")
+                else:
+                    print(f"❌ {message}\n")
+                    sys.exit(1)
+    
+    except Exception as e:
+        print(f"\n❌ An error occurred: {e}\n")
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
@@ -370,6 +428,12 @@ Examples:
     
     subparsers.add_parser('excluded', help='List excluded devices')
     
+    # Autostart configuration
+    autostart_parser = subparsers.add_parser('autostart', help='Configure Windows autostart')
+    autostart_parser.add_argument('--enable', action='store_true', help='Enable autostart')
+    autostart_parser.add_argument('--disable', action='store_true', help='Disable autostart')
+    autostart_parser.add_argument('--status', action='store_true', help='Check autostart status')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -404,6 +468,8 @@ Examples:
         include_device_command(args)
     elif args.command == 'excluded':
         list_excluded_devices()
+    elif args.command == 'autostart':
+        autostart_command(args)
 
 
 if __name__ == "__main__":
