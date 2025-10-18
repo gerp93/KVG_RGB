@@ -307,43 +307,43 @@ def autostart_command(args):
         # Check status
         if args.status:
             if is_autostart_enabled():
-                print("\n✅ Autostart is ENABLED")
+                print("\n[OK] Autostart is ENABLED")
                 print("   The RGB controller starts automatically when you log in.\n")
             else:
-                print("\n❌ Autostart is DISABLED")
+                print("\n[X] Autostart is DISABLED")
                 print("   The RGB controller will NOT start automatically.\n")
             return
         
         # Enable autostart
         if args.enable:
             if is_autostart_enabled():
-                print("\n✅ Autostart is already enabled")
+                print("\n[OK] Autostart is already enabled")
             else:
-                print("\n⏳ Enabling autostart...")
+                print("\n[...] Enabling autostart...")
                 success, message = create_startup_shortcut()
                 if success:
-                    print(f"✅ Autostart enabled!")
+                    print(f"[OK] Autostart enabled!")
                     print(f"   Shortcut created at: {message}")
                     print("   KVG RGB will start automatically when you log in.\n")
                 else:
-                    print(f"❌ Failed to enable autostart: {message}\n")
+                    print(f"[ERROR] Failed to enable autostart: {message}\n")
                     sys.exit(1)
         
         # Disable autostart
         if args.disable:
             if not is_autostart_enabled():
-                print("\nℹ️  Autostart is already disabled")
+                print("\n[INFO] Autostart is already disabled")
             else:
-                print("\n⏳ Disabling autostart...")
+                print("\n[...] Disabling autostart...")
                 success, message = remove_startup_shortcut()
                 if success:
-                    print(f"✅ {message}\n")
+                    print(f"[OK] {message}\n")
                 else:
-                    print(f"❌ {message}\n")
+                    print(f"[ERROR] {message}\n")
                     sys.exit(1)
     
     except Exception as e:
-        print(f"\n❌ An error occurred: {e}\n")
+        print(f"\n[ERROR] An error occurred: {e}\n")
         sys.exit(1)
 
 
