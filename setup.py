@@ -19,6 +19,9 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="KVG",
+    author_email="",
+    url="https://github.com/gerp93/KVG_RGB",
+    license="AGPL-3.0-or-later",
     packages=find_packages(),
     include_package_data=True,  # Include non-Python files specified in MANIFEST.in
     package_data={
@@ -40,8 +43,26 @@ setup(
     },
     python_requires='>=3.7',
     classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: End Users/Desktop",
+        "Topic :: System :: Hardware",
+        "Topic :: Utilities",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Operating System :: OS Independent",
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: MacOS",
     ],
+    keywords="rgb openrgb lighting led controller cli web-ui hardware",
+    project_urls={
+        "Bug Reports": "https://github.com/gerp93/KVG_RGB/issues",
+        "Source": "https://github.com/gerp93/KVG_RGB",
+        "Documentation": "https://github.com/gerp93/KVG_RGB#readme",
+    },
 )

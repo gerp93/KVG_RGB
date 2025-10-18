@@ -304,3 +304,32 @@ For more detailed troubleshooting, see [TROUBLESHOOTING.md](docs/TROUBLESHOOTING
 - 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - 📝 [Changelog](docs/CHANGELOG.md) - Version history and updates
 - ✅ [TODO](TODO.md) - Development roadmap and planned features
+
+## License & Terms
+
+This project is released under the **GNU Affero General Public License v3 (AGPLv3)** - see [LICENSE](LICENSE) for details.
+
+**Key Points (summary):**
+- 🔁 Strong copyleft: If you modify this software and run it as a network service,
+   you must make the modified source code available under AGPLv3 to your users.
+- ✅ You may use, modify, and distribute the software, but derived works must also be
+   licensed under AGPLv3 when conveyed or offered over a network.
+- 📋 Preserve copyright and license notices when redistributing.
+
+For detailed terms of use, see [TERMS.md](TERMS.md).
+
+## Contributing
+
+Contributions are welcome! By contributing you agree to license your changes under AGPLv3.
+
+- 🐛 Report bugs via GitHub Issues
+- 💡 Suggest features via GitHub Issues
+- 🔧 Submit pull requests
+- ⭐ Star the repo if you find it useful
+
+## Acknowledgments
+
+- **OpenRGB Project** - For making RGB control possible
+- **Python OpenRGB** - For the Python SDK
+- **Flask** - For the web framework
+- **All Contributors** - Thank you!
