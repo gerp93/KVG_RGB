@@ -1256,6 +1256,31 @@ function updateStatus(message, type = '') {
     statusBar.className = 'status-bar ' + type;
 }
 
+/**
+ * showStatus - transient status helper used across the UI
+ * message: text to show
+ * type: 'success'|'error'|'info' (affects styling)
+ * duration: milliseconds to keep the message (0 = persistent)
+ */
+function showStatus(message, type = 'info', duration = 4000) {
+    // Save current status so we can restore it
+    const statusBar = document.getElementById('statusBar');
+    const statusText = document.getElementById('statusText');
+    const previousText = statusText.textContent;
+    const previousClass = statusBar.className;
+
+    // Update to new transient message
+    updateStatus(message, type);
+
+    if (duration > 0) {
+        setTimeout(() => {
+            // Restore previous status
+            statusText.textContent = previousText;
+            statusBar.className = previousClass;
+        }, duration);
+    }
+}
+
 function updateSelectionText(message) {
     const selectionText = document.getElementById('selectionText');
     if (selectionText) {
