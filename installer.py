@@ -365,13 +365,15 @@ Commands:
         # Check if running as PyInstaller bundle
         if getattr(sys, '_MEIPASS', None):
             bundle_dir = Path(sys._MEIPASS)
-            wheel_files = list(bundle_dir.glob("kvg_rgb-*.whl"))
+            # Look for the standard wheel format (not renamed versions)
+            wheel_files = list(bundle_dir.glob("kvg_rgb-*-py3-none-any.whl"))
             if wheel_files:
                 return str(wheel_files[0])
         
         # Check same directory as script
         script_dir = Path(__file__).parent
-        wheel_files = list(script_dir.glob("kvg_rgb-*.whl"))
+        # Look for the standard wheel format (not renamed versions)
+        wheel_files = list(script_dir.glob("kvg_rgb-*-py3-none-any.whl"))
         if wheel_files:
             return str(wheel_files[0])
         

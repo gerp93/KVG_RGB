@@ -21,10 +21,10 @@ if os.path.exists(old_installer):
         except:
             print(f"Warning: Could not remove {old_installer}, it may be in use")
 
-# Find the wheel file to bundle
-wheel_files = glob.glob('dist/kvg_rgb-*.whl')
+# Find the standard wheel file to bundle (not renamed versions)
+wheel_files = glob.glob('dist/kvg_rgb-*-py3-none-any.whl')
 if not wheel_files:
-    print("ERROR: No wheel file found in dist/")
+    print("ERROR: No standard wheel file found in dist/")
     print("Please run 'python -m build' first")
     sys.exit(1)
 
