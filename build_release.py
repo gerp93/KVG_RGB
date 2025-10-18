@@ -91,8 +91,8 @@ def rename_release_files():
     
     import glob
     
-    # Find version from wheel filename
-    wheel_files = glob.glob('dist/kvg_rgb-*.whl')
+    # Find the original wheel file (not the renamed one)
+    wheel_files = glob.glob('dist/kvg_rgb-*-py3-none-any.whl')
     if not wheel_files:
         print("   ⚠️ No wheel file found to rename")
         return False
@@ -103,7 +103,7 @@ def rename_release_files():
     
     renamed_files = []
     
-    # Rename wheel for Linux/macOS
+    # Copy wheel for Linux/macOS (keep original for build compatibility)
     new_wheel_name = f'dist/kvg_rgb-{version}-linux-macos.whl'
     try:
         if os.path.exists(new_wheel_name):
@@ -112,7 +112,7 @@ def rename_release_files():
         renamed_files.append(f"kvg_rgb-{version}-linux-macos.whl")
         print(f"   ✓ Created {os.path.basename(new_wheel_name)}")
     except Exception as e:
-        print(f"   ⚠️ Could not rename wheel: {e}")
+        print(f"   ⚠️ Could not create Linux/macOS wheel: {e}")
     
     # Rename installer for Windows
     old_installer = 'dist/KVG_RGB_Installer.exe'
