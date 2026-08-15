@@ -4,6 +4,7 @@ Windows autostart configuration helper
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def get_startup_folder():
@@ -34,33 +35,32 @@ def is_autostart_enabled():
     return shortcut_path.exists()
 
 
-def create_startup_shortcut():
-    """Create a shortcut in Windows startup folder using PowerShell"""
-    startup_folder = get_startup_folder()
+def _create_shortcut(folder: Path, minimized: bool):
+    """Create a .lnk to the startup script in the given folder using PowerShell"""
     script_path = get_script_path()
-    
-    if not startup_folder or not script_path:
+
+    if not folder or not script_path:
         return False, "Could not locate required paths"
-    
+
     if not script_path.exists():
         return False, f"Startup script not found at: {script_path}"
-    
-    if not startup_folder.exists():
-        startup_folder.mkdir(parents=True, exist_ok=True)
-    
-    shortcut_path = startup_folder / 'KVG RGB Controller.lnk'
-    
+
+    if not folder.exists():
+        folder.mkdir(parents=True, exist_ok=True)
+
+    shortcut_path = folder / 'KVG RGB Controller.lnk'
+
     # Use PowerShell to create the shortcut (works without pywin32)
     ps_command = f'''
     $WshShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
     $Shortcut.TargetPath = "{script_path}"
     $Shortcut.WorkingDirectory = "{Path.home()}"
-    $Shortcut.WindowStyle = 7
+    $Shortcut.WindowStyle = {7 if minimized else 1}
     $Shortcut.Description = "Start KVG RGB Controller"
     $Shortcut.Save()
     '''
-    
+
     try:
         import subprocess
         result = subprocess.run(
@@ -69,13 +69,38 @@ def create_startup_shortcut():
             text=True,
             timeout=10
         )
-        
+
         if result.returncode == 0 and shortcut_path.exists():
             return True, str(shortcut_path)
         else:
             return False, f"PowerShell error: {result.stderr}"
     except Exception as e:
         return False, f"Error creating shortcut: {e}"
+
+
+def create_startup_shortcut():
+    """Create a shortcut in Windows startup folder"""
+    return _create_shortcut(get_startup_folder(), minimized=True)
+
+
+def create_desktop_shortcut(location: Optional[Path] = None):
+    """Create a shortcut on the Desktop (or a given folder) to launch the app"""
+    return _create_shortcut(location or (Path.home() / 'Desktop'), minimized=False)
+
+
+def remove_desktop_shortcut(location: Optional[Path] = None):
+    """Remove a previously created desktop shortcut"""
+    folder = location or (Path.home() / 'Desktop')
+    shortcut_path = folder / 'KVG RGB Controller.lnk'
+
+    if shortcut_path.exists():
+        try:
+            shortcut_path.unlink()
+            return True, "Desktop shortcut removed"
+        except Exception as e:
+            return False, f"Error removing shortcut: {e}"
+    else:
+        return False, "Desktop shortcut was not found"
 
 
 def remove_startup_shortcut():

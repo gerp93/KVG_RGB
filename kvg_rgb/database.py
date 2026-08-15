@@ -8,6 +8,14 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 from .paths import DATABASE_FILE, ensure_data_dir
 
+# VisualAssault theme ids (vendor/visual-assault-themes.css @ v0.2.0), without the '-theme' suffix
+VALID_THEMES = [
+    'blue-oval', 'bubblegum', 'commander-keen', 'electric-lime', 'flambeau',
+    'flambeau-inverse', 'green-acres', 'hacker', 'hawkeye', 'lava',
+    'merica', 'neon', 'red-barn', 'retrowave',
+]
+DEFAULT_THEME = 'neon'
+
 
 class ColorDatabase:
     """Manages persistent storage of device and zone colors."""
@@ -96,6 +104,14 @@ class ColorDatabase:
                     zone_index INTEGER NOT NULL,
                     enabled INTEGER DEFAULT 0,
                     PRIMARY KEY (device_index, zone_index)
+                )
+            ''')
+
+            # Create app_settings table for small, single-value app preferences (e.g. theme)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
                 )
             ''')
             conn.commit()
@@ -630,4 +646,29 @@ class ColorDatabase:
             ''', (device_index, zone_index))
             result = cursor.fetchone()
             return bool(result[0]) if result else False
+
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Get a single app_settings value by key."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT value FROM app_settings WHERE key = ?', (key,))
+            result = cursor.fetchone()
+            return result[0] if result else default
+
+    def set_setting(self, key: str, value: str):
+        """Set a single app_settings value by key."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)
+            ''', (key, value))
+            conn.commit()
+
+    def get_theme(self) -> str:
+        """Get the current VisualAssault theme id (without the '-theme' suffix)."""
+        return self.get_setting('theme', DEFAULT_THEME)
+
+    def set_theme(self, theme: str):
+        """Persist the current VisualAssault theme id."""
+        self.set_setting('theme', theme)
 

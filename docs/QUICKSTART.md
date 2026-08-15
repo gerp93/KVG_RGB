@@ -2,14 +2,14 @@
 
 ## Getting Started (For End Users)
 
-### 1. **Easiest: Use the Web Interface**
-```powershell
-# In your terminal:
-kvg-rgb web
-```
-✅ Browser opens automatically at http://localhost:5000  
-✅ Use the visual color picker and effect controls  
-✅ No command-line knowledge needed!
+### 1. **Easiest: Launch the App**
+
+Double-click the downloaded executable (or, from source: `kvg-rgb gui`).
+It opens as a normal desktop window — no browser tab, no terminal needed.
+Use the visual color picker and effect controls right there.
+
+Prefer a browser tab instead (e.g. for remote/headless use)? `kvg-rgb web`
+still works and opens `http://localhost:5000`.
 
 ### 2. **Alternative: Command Line**
 ```powershell
@@ -31,10 +31,11 @@ KVG_RGB/
 ├── kvg_rgb/              # Main package
 │   ├── __init__.py       # Package init
 │   ├── core.py           # RGB controller class
+│   ├── web.py            # Flask backend + routes
+│   ├── gui.py            # Desktop window entry point (pywebview)
 │   └── cli.py            # CLI interface
-├── main.py               # Entry point
-├── rgb_utils.py          # Legacy utilities
-├── build_exe.py          # Executable builder
+├── main.py               # CLI-exe entry point
+├── build_exe.py          # CLI-only executable builder
 ├── requirements.txt      # Dependencies
 ├── requirements-dev.txt  # Dev dependencies
 ├── setup.py              # Package setup
@@ -47,15 +48,15 @@ KVG_RGB/
 ### Development (in venv)
 ```powershell
 .\venv\Scripts\Activate.ps1
+kvg-rgb gui
 kvg-rgb list
 kvg-rgb color 255 0 0
 ```
 
-### Build Executable
-```bash
-python release.py
-# Output: dist\kvg-rgb.exe (Windows) or dist/kvg-rgb (Linux/macOS)
-```
+### Build a release
+
+Releases are built by CI (see [RELEASE.md](RELEASE.md)) — push to `main`
+or trigger `cut-release.yml` from the Actions tab. No local build script.
 
 ### Reinstall Package
 ```powershell
@@ -66,7 +67,10 @@ pip install -e .
 ## CLI Examples
 
 ```powershell
-# Web interface (easiest!)
+# Desktop window (easiest!)
+kvg-rgb gui
+
+# Or a browser tab instead
 kvg-rgb web
 
 # List devices
@@ -107,11 +111,6 @@ with RGBController() as controller:
 
 ## Sharing Your Tool
 
-1. Build executable: `python build_exe.py`
-2. Share `dist\kvg-rgb.exe` 
-3. Recipients don't need Python!
-
-## Future GUI
-
-The `RGBController` class in `kvg_rgb/core.py` is designed to be reusable.
-To add a GUI later, create `kvg_rgb/gui.py` and import the controller.
+Point people at the [latest release](https://github.com/gerp93/KVG_RGB/releases/latest) —
+CI builds and publishes the executable for Windows/macOS/Linux on every
+release. Recipients don't need Python or a build step.

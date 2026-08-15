@@ -362,7 +362,8 @@ Examples:
   kvg-rgb resize 1 3 35                     Resize device 1, zone 3 to 35 LEDs
   kvg-rgb rainbow --duration 30             30 second rainbow effect
   kvg-rgb breathe 0 150 255 --speed 2       Fast blue breathing effect
-  kvg-rgb web                               Start web interface
+  kvg-rgb gui                               Start the desktop window
+  kvg-rgb web                               Start web interface in a browser tab
   kvg-rgb exclude 2                         Exclude device 2 from RGB control
   kvg-rgb include 2                         Re-enable device 2
   kvg-rgb excluded                          List excluded devices
@@ -413,8 +414,11 @@ Examples:
     breathe_parser.add_argument('--speed', type=float, default=1.0, help='Speed multiplier (default: 1.0)')
     breathe_parser.add_argument('--device', type=int, default=None, help='Specific device index (default: all)')
     
+    # GUI command (native desktop window)
+    subparsers.add_parser('gui', help='Start the native desktop window (default way to run the app)')
+
     # Web command
-    web_parser = subparsers.add_parser('web', help='Start web interface')
+    web_parser = subparsers.add_parser('web', help='Start web interface in a browser tab instead of the desktop window')
     web_parser.add_argument('--host', type=str, default='127.0.0.1', help='Host address (default: 127.0.0.1)')
     web_parser.add_argument('--port', type=int, default=5000, help='Port number (default: 5000)')
     web_parser.add_argument('--no-browser', action='store_true', help='Don\'t open browser automatically')
@@ -433,10 +437,6 @@ Examples:
     autostart_parser.add_argument('--enable', action='store_true', help='Enable autostart')
     autostart_parser.add_argument('--disable', action='store_true', help='Disable autostart')
     autostart_parser.add_argument('--status', action='store_true', help='Check autostart status')
-    
-    # Settings manager (Windows only)
-    if sys.platform == 'win32':
-        subparsers.add_parser('settings', help='Open settings & installer manager (Windows only)')
     
     args = parser.parse_args()
     
@@ -459,6 +459,9 @@ Examples:
         rainbow_command(args)
     elif args.command == 'breathe':
         breathe_command(args)
+    elif args.command == 'gui':
+        from kvg_rgb.gui import run_gui
+        run_gui()
     elif args.command == 'web':
         from kvg_rgb.web import run_web_server
         run_web_server(
@@ -474,56 +477,6 @@ Examples:
         list_excluded_devices()
     elif args.command == 'autostart':
         autostart_command(args)
-    elif args.command == 'settings':
-        settings_command()
-
-
-def settings_command():
-    """Launch the settings manager GUI (Windows only)"""
-    if sys.platform != 'win32':
-        print("Error: Settings manager is only available on Windows.")
-        sys.exit(1)
-    
-    try:
-        # Import and run the installer/settings manager
-        import subprocess
-        import sys
-        from pathlib import Path
-        
-        # Try to find installer.py in the package
-        package_dir = Path(__file__).parent.parent
-        installer_path = package_dir / 'installer.py'
-        
-        if installer_path.exists():
-            # Run the installer as a separate process
-            subprocess.Popen([sys.executable, str(installer_path)])
-            print("Settings manager launched!")
-        else:
-            # Fall back to trying to import it
-            try:
-                import tkinter as tk
-                # Import from installed location
-                spec_path = Path(__file__).parent.parent / 'installer.py'
-                if not spec_path.exists():
-                    print("Error: Could not find settings manager.")
-                    print("Please use the standalone installer executable.")
-                    sys.exit(1)
-                    
-                import importlib.util
-                spec = importlib.util.spec_from_file_location("installer", spec_path)
-                installer = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(installer)
-                
-                root = tk.Tk()
-                app = installer.RGBControllerManager(root)
-                root.mainloop()
-            except ImportError as e:
-                print(f"Error: Could not launch settings manager: {e}")
-                print("Please download the installer from GitHub.")
-                sys.exit(1)
-    except Exception as e:
-        print(f"Error launching settings manager: {e}")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

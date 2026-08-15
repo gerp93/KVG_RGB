@@ -3,3 +3,14 @@ openrgb-python>=0.2.15
 
 # Web interface
 flask>=3.0.0
+
+# Native desktop window
+pywebview>=5.0
+
+# Self-update check (KVG_Standards has no tagged releases yet, so this
+# pins @main per update-check-versioning.md's documented interim exception)
+kvg-updater @ git+https://github.com/gerp93/KVG_Standards.git@main#subdirectory=packages/python/kvg_updater
+
+# Relocatable SQLite database path (same @main interim exception, see
+# db-location-versioning.md)
+kvg-dblocation @ git+https://github.com/gerp93/KVG_Standards.git@main#subdirectory=packages/python/kvg_dblocation

@@ -2,104 +2,64 @@
 
 ## Prerequisites
 
-- **Python 3.7 or higher** (Windows, macOS, or Linux)
 - **OpenRGB** must be installed and running
   - Download from: https://openrgb.org/
   - Enable SDK Server in OpenRGB Settings
 
-## Installation
+## Installation (End Users)
 
-### Windows - GUI Installer (Easiest)
+Download the build for your platform from the
+[latest release](https://github.com/gerp93/KVG_RGB/releases/latest) and run
+it directly — no installer, no Python required:
 
-**For users who prefer not to use the command line:**
+- **Windows** — `KVG_RGB-windows.exe`
+- **macOS** — `KVG_RGB-macos` (make it executable first: `chmod +x KVG_RGB-macos`)
+- **Linux** — `KVG_RGB-linux` (make it executable first: `chmod +x KVG_RGB-linux`)
 
-1. Download both files from the release:
-   - `KVG_RGB_Installer.exe`
-   - `kvg_rgb-X.X.X-py3-none-any.whl`
+These builds are unsigned (no code-signing certificate configured), so
+Windows SmartScreen and macOS Gatekeeper will warn about an unrecognized
+publisher — click through ("More info" → "Run anyway" on Windows,
+right-click → "Open" on macOS) to launch it.
 
-2. Place both files in the same folder
-
-3. Double-click `KVG_RGB_Installer.exe`
-
-4. Click "Install / Upgrade"
-
-The installer will:
-- ✅ Check Python installation
-- ✅ Close any running instances
-- ✅ Install or upgrade automatically
-- ✅ Show installation progress
-
-**Note:** Windows may show a SmartScreen warning. Click "More info" → "Run anyway" (the app is safe, just not signed).
-
-### Command Line Installation (All Platforms)
-
-#### Fresh Installation
-
-```bash
-pip install kvg_rgb-X.X.X-py3-none-any.whl
-```
-
-#### Upgrading from Previous Version
-
-**Option 1: Automatic upgrade (Recommended)**
-```bash
-pip install --upgrade --force-reinstall kvg_rgb-X.X.X-py3-none-any.whl
-```
-
-**Option 2: Manual upgrade**
-```bash
-# Uninstall old version
-pip uninstall kvg-rgb -y
-
-# Install new version
-pip install kvg_rgb-X.X.X-py3-none-any.whl
-```
-
-**✅ Your settings are automatically preserved!**
+**✅ Your settings are automatically preserved across updates!**
 - All data stored in `~/.kvg_rgb/` (Linux/macOS) or `%USERPROFILE%\.kvg_rgb\` (Windows)
 - Colors, LED configurations, and profiles persist across updates
-- Database is never touched during uninstall/upgrade
+- Relocatable from inside the app: Settings → Database Location
+
+## From Source (Developers)
+
+```powershell
+cd C:\Users\kgerp\source\repos\KVG_RGB
+.\venv\Scripts\Activate.ps1
+pip install -e .
+kvg-rgb gui
+```
+
+See the main [README](../README.md#for-developers-from-source) for details.
 
 ## First Time Setup
 
-After installation:
-
 1. **Start OpenRGB** and enable SDK Server
-2. **Run the web interface**:
-   ```cmd
-   kvg-rgb web
-   ```
-3. **Configure autostart** (optional):
-   ```cmd
-   kvg-rgb autostart
-   ```
+2. **Run the app** — double-click the downloaded executable, or `kvg-rgb gui` from source
+3. **Configure autostart** (optional) — Settings → Startup inside the app, or `kvg-rgb autostart` from the CLI
 
 ## Uninstalling
 
-```bash
-# Remove the package
-pip uninstall kvg-rgb
+Just delete the executable — there's nothing else installed.
 
-# Optionally remove your data (colors, settings, profiles)
-# Linux/macOS:
-rm -rf ~/.kvg_rgb
+To also remove your data (colors, settings, profiles):
 
-# Windows (PowerShell):
+```powershell
+# Windows (PowerShell)
 Remove-Item -Recurse -Force "$env:USERPROFILE\.kvg_rgb"
-
-# Windows (Command Prompt):
-rmdir /s /q "%USERPROFILE%\.kvg_rgb"
 ```
 
-**Note:** Uninstalling the package does NOT delete your data by default. Your settings remain in `~/.kvg_rgb/` so you can reinstall later without losing anything.
+```bash
+# Linux/macOS
+rm -rf ~/.kvg_rgb
+```
 
 ## Troubleshooting
-
-### "Python is not installed or not in PATH"
-- Install Python from https://python.org
-- **Windows**: Make sure to check "Add Python to PATH" during installation
-- **Linux**: Use your package manager (`apt install python3` or `dnf install python3`)
-- **macOS**: Use Homebrew (`brew install python3`)
 
 ### "Could not connect to OpenRGB"
 1. Make sure OpenRGB is running
@@ -108,11 +68,9 @@ rmdir /s /q "%USERPROFILE%\.kvg_rgb"
 
 For more help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
-## What Gets Installed
+## What's Where
 
-- **Command**: `kvg-rgb` - Main CLI tool (cross-platform)
-- **Web Interface**: Accessible at `http://localhost:5000`
-- **Data Directory**: 
+- **Data Directory**:
   - **Linux/macOS**: `~/.kvg_rgb/`
   - **Windows**: `%USERPROFILE%\.kvg_rgb\`
   - Contains:
@@ -123,5 +81,5 @@ For more help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 ## Next Steps
 
 - 📖 Read the [Quick Start Guide](QUICKSTART.md)
-- 🚀 Set up [autostart](../README.md#-auto-start-on-windows-boot)
+- 🚀 Set up autostart from Settings inside the app, or `kvg-rgb autostart`
 - 🎨 Start controlling your RGB!

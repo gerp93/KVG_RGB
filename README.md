@@ -2,6 +2,8 @@
 
 This project provides Python scripts for controlling RGB devices using OpenRGB with a professional CLI interface.
 
+This repo follows [KVG_Standards](https://github.com/gerp93/KVG_Standards) for theming, licensing, release/CI, update-check, and database-location conventions shared across gerp93's app repos.
+
 ## Quick Links
 
 � [Installation Guide](docs/INSTALL.md) | �📖 [Quick Start Guide](docs/QUICKSTART.md) | 🚀 [Release Guide](docs/RELEASE.md) | 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) | 📝 [Changelog](docs/CHANGELOG.md)
@@ -10,7 +12,7 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 - 🎨 Control all your RGB devices from the command line
 - 🌈 Built-in effects (rainbow, breathing)
-- 🌐 **Web UI** - Modern browser-based control interface
+- 🌐 **Desktop App** - Native window UI (or a browser tab, if you prefer)
 - 🔧 Extensible architecture for future GUI development
 - 📦 Can be packaged as standalone executable for sharing
 - 🎛️ Zone management - resize addressable RGB zones on compatible devices
@@ -20,28 +22,18 @@ This project provides Python scripts for controlling RGB devices using OpenRGB w
 
 ### For End Users (Distributed Package)
 
-**Windows - GUI Installer (Recommended for non-technical users):**
+Download the build for your platform from the [latest release](https://github.com/gerp93/KVG_RGB/releases/latest) and run it directly — no installer needed:
 
-1. Download `KVG_RGB_Installer.exe` and the `.whl` file from the latest release
-2. Put both files in the same folder
-3. Run `KVG_RGB_Installer.exe` and click "Install"
+- **Windows** — `KVG_RGB-windows.exe`
+- **macOS** — `KVG_RGB-macos` (make it executable first: `chmod +x KVG_RGB-macos`)
+- **Linux** — `KVG_RGB-linux` (make it executable first: `chmod +x KVG_RGB-linux`)
 
-**All Platforms - Command Line:**
+These builds are unsigned, so Windows SmartScreen / macOS Gatekeeper will warn about an unrecognized publisher — click through to launch it. The app checks for updates itself (see Settings inside the app).
 
-```bash
-# Fresh installation
-pip install kvg_rgb-X.X.X-py3-none-any.whl
-
-# Upgrade from previous version
-pip install --upgrade --force-reinstall kvg_rgb-X.X.X-py3-none-any.whl
-```
-
-**Your settings are preserved across updates!** 
-- All data is stored in `~/.kvg_rgb/` (or `%USERPROFILE%\.kvg_rgb\` on Windows)
+**Your settings are preserved across updates!**
+- All data is stored in `~/.kvg_rgb/` (or `%USERPROFILE%\.kvg_rgb\` on Windows), and relocatable via Settings → Database Location
 - Colors, LED configurations, and profiles persist across updates
 - Works on Windows, macOS, and Linux
-
-📦 **See the full [Installation Guide](docs/INSTALL.md)** for detailed instructions.
 
 ### For Developers (From Source)
 
@@ -79,51 +71,55 @@ kvg-rgb color 255 0 0
   - Enable "Start SDK Server"
   - Default port is 6742
 
+Note: the app checks for OpenRGB itself at startup and shows a clear message in the window if it can't connect, instead of failing silently.
+
 ## Files
 
 ### Package Structure
 - `kvg_rgb/` - Main package folder
   - `__init__.py` - Package initialization
   - `core.py` - Core RGB controller class (reusable by CLI or GUI)
+  - `web.py` - Flask backend + HTTP API
+  - `gui.py` - Desktop window entry point (pywebview) — what CI packages
   - `cli.py` - Command-line interface
-- `main.py` - Entry point script
-- `rgb_utils.py` - Legacy utility functions (for reference)
+- `main.py` - CLI-only entry point (used by `build_exe.py`)
 - `requirements.txt` - Production dependencies
 - `requirements-dev.txt` - Development dependencies (PyInstaller)
-- `build_exe.py` - Script to build standalone executable
+- `build_exe.py` - Script to build a standalone CLI-only executable
 
 ## Usage
 
-### Web Interface (Recommended)
+### Desktop App (Recommended)
 
-The easiest way to control your RGB devices is through the web interface:
+The easiest way to control your RGB devices — a native window, no browser tab:
 
 ```powershell
-# Start the web server (browser opens automatically)
-kvg-rgb web
-
-# Customize host/port if needed
-kvg-rgb web --port 8080
-
-# Start without auto-opening browser
-kvg-rgb web --no-browser
+kvg-rgb gui
 ```
 
-**Features of the Web UI:**
+**Features:**
 - 🎨 **Color Picker** - Visual color selection with RGB sliders
 - 🎯 **Quick Presets** - One-click common colors
 - ✨ **Effects** - Rainbow and breathing effects with speed control
 - 🎛️ **Zone Management** - Resize addressable RGB zones
 - 🖥️ **Device Selection** - Control all devices or specific ones
-- 📱 **Responsive** - Works on desktop, tablet, and mobile browsers
+- ⚙️ **Settings panel** - Theme picker, autostart, database location, update check
 
-The web interface runs **locally on your machine** at `http://localhost:5000`. No internet connection needed!
+Prefer a browser tab instead (e.g. for remote/headless use)?
+
+```powershell
+kvg-rgb web
+kvg-rgb web --port 8080
+kvg-rgb web --no-browser
+```
 
 ### 🚀 Auto-start on Windows Boot
 
 To make KVG RGB start automatically when you log in to Windows:
 
-**Option 1: Automatic Setup (Easiest)**
+**Easiest: the app's own Settings panel** — open Settings (⚙️) inside the app and toggle "Start KVG RGB Controller when Windows starts."
+
+**Option 1: CLI**
 
 ```powershell
 # Interactive setup - will guide you through the process
@@ -156,7 +152,7 @@ kvg-rgb autostart --disable
    - Press Enter
    - Move the shortcut to the Startup folder
 
-4. **Done!** The RGB controller will now start automatically (minimized in background) when you log in.
+4. **Done!** The RGB controller will now start automatically (as a desktop window) when you log in.
 
 To disable auto-start, use `kvg-rgb autostart --disable` or delete the shortcut from the Startup folder.
 
@@ -268,25 +264,28 @@ See `kvg_rgb/cli.py` for CLI-specific functions:
 - `rainbow_command(args)` - Rainbow effect command handler
 - `breathe_command(args)` - Breathing effect command handler
 
-## Building Standalone Executable
+## Building the Desktop App Locally
 
-To create a shareable `.exe` file that doesn't require Python:
+The distributed app (`kvg-rgb gui`) is built and published automatically by
+CI on every release — see [RELEASE.md](docs/RELEASE.md). To build it
+locally instead (for testing packaging changes):
 
 ```powershell
-# Activate venv
 .\venv\Scripts\Activate.ps1
+pip install pyinstaller
+pyinstaller --onefile --windowed --name KVG_RGB kvg_rgb/gui.py
+```
 
-# Install PyInstaller
+There's also a CLI-only executable (`build_exe.py`/`kvg-rgb.spec`) for
+users who just want `kvg-rgb list`/`kvg-rgb color` without the desktop
+window:
+
+```powershell
 pip install -r requirements-dev.txt
-
-# Build the executable
 python build_exe.py
 ```
 
-The executable will be created in `dist\kvg-rgb.exe`. You can:
-- Copy it to a folder in your PATH (like `C:\Windows\`)
-- Share it with others (they don't need Python or OpenRGB SDK installed)
-- Run it from anywhere: `kvg-rgb.exe list`
+The CLI executable is created at `dist\kvg-rgb.exe`.
 
 ## Troubleshooting
 
@@ -304,3 +303,33 @@ For more detailed troubleshooting, see [TROUBLESHOOTING.md](docs/TROUBLESHOOTING
 - 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - 📝 [Changelog](docs/CHANGELOG.md) - Version history and updates
 - ✅ [TODO](TODO.md) - Development roadmap and planned features
+
+## License & Terms
+
+This project is released under the **GNU Affero General Public License v3 (AGPLv3)** - see [LICENSE](LICENSE) for details.
+
+**Key Points (summary):**
+- 🔁 Strong copyleft: If you modify this software and run it as a network service,
+   you must make the modified source code available under AGPLv3 to your users.
+- ✅ You may use, modify, and distribute the software, but derived works must also be
+   licensed under AGPLv3 when conveyed or offered over a network.
+- 📋 Preserve copyright and license notices when redistributing.
+
+For detailed terms of use, see [TERMS.md](TERMS.md).
+
+## Contributing
+
+Contributions are welcome! By contributing you agree to license your changes under AGPLv3.
+
+- 🐛 Report bugs via GitHub Issues
+- 💡 Suggest features via GitHub Issues
+- 🔧 Submit pull requests
+- ⭐ Star the repo if you find it useful
+
+## Acknowledgments
+
+- **OpenRGB Project** - For making RGB control possible
+- **Python OpenRGB** - For the Python SDK
+- **Flask** - For the web framework
+- **pywebview** - For the native desktop window
+- **All Contributors** - Thank you!

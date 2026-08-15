@@ -8,7 +8,7 @@ dynamic = ["version", "dependencies"]
 description = "RGB device controller using OpenRGB with CLI and web UI support"
 readme = "README.md"
 requires-python = ">=3.7"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-or-later"}
 authors = [
     {name = "KVG"}
 ]

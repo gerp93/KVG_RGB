@@ -4,23 +4,31 @@
     box-sizing: border-box;
 }
 
-:root {
-    --primary-color: #6366f1;
-    --primary-hover: #4f46e5;
-    --success-color: #10b981;
-    --danger-color: #ef4444;
-    --warning-color: #f59e0b;
-    --bg-dark: #1f2937;
-    --bg-card: #374151;
-    --bg-light: #4b5563;
-    --text-primary: #f9fafb;
-    --text-secondary: #d1d5db;
-    --border-color: #6b7280;
-}
-
+/*
+ * Color palette comes from VisualAssault (vendor/visual-assault-themes.css),
+ * pinned to a tag — see themes-versioning.md. The body.<theme>-theme class
+ * (set server-side in index.html, switched at runtime by the theme picker
+ * in Settings) defines the --color-* custom properties below; this block
+ * just aliases them to the names the rest of this file already uses, per
+ * VisualAssault's own documented usage pattern. Defined on `body` (not
+ * :root) because --color-* live on body and custom properties can only
+ * read from an ancestor or self, never a descendant.
+ */
 body {
+    --primary-color: var(--color-primary-action);
+    --primary-hover: var(--color-primary-action-hover);
+    --success-color: var(--color-accent-green);
+    --danger-color: var(--color-accent-red);
+    --warning-color: var(--color-accent-blue);
+    --bg-dark: var(--color-bg);
+    --bg-card: var(--color-surface);
+    --bg-light: var(--color-bg-hover);
+    --text-primary: var(--color-text);
+    --text-secondary: var(--color-text-muted);
+    --border-color: var(--color-border);
+
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-hover) 100%);
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
@@ -1279,4 +1287,98 @@ footer {
     #colorPicker {
         width: 100%;
     }
+}
+
+/* Settings modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: min(480px, 90vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    font-size: 1.3rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+}
+
+.modal-close:hover {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.settings-section {
+    margin-bottom: 1.5rem;
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-section h3 {
+    font-size: 1rem;
+    margin-bottom: 0.6rem;
+    color: var(--text-secondary);
+}
+
+.settings-select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-light);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.settings-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.settings-muted {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    word-break: break-all;
+    margin-bottom: 0.5rem;
 }

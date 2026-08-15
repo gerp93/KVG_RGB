@@ -4,14 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KVG RGB Controller</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/visual-assault-themes.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="{{ theme }}-theme">
     <div class="container">
         <header>
             <h1>🌈 KVG RGB Controller</h1>
-            <p>Control your RGB devices from your browser</p>
-            <button class="btn btn-info btn-small settings-btn" onclick="openSettings()" title="Open settings & installer manager">⚙️ Settings</button>
+            <p>Control your RGB devices</p>
+            <button class="btn btn-info btn-small settings-btn" onclick="openSettings()" title="Open settings">⚙️ Settings</button>
         </header>
 
         <div class="status-bar" id="statusBar">
@@ -94,6 +95,65 @@
         <footer>
             <p>KVG RGB Controller | Made with ❤️ and Python</p>
         </footer>
+    </div>
+
+    <div id="settingsModal" class="modal-overlay" style="display: none;" onclick="if (event.target === this) closeSettings()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="modal-close" onclick="closeSettings()" title="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <section class="settings-section">
+                    <h3>Theme</h3>
+                    <select id="themeSelect" class="settings-select" onchange="changeTheme(this.value)"></select>
+                </section>
+
+                <section class="settings-section" id="autostartSection">
+                    <h3>Startup</h3>
+                    <label class="settings-checkbox">
+                        <input type="checkbox" id="autostartCheckbox" onchange="toggleAutostart(this.checked)">
+                        Start KVG RGB Controller when Windows starts
+                    </label>
+                </section>
+
+                <section class="settings-section" id="shortcutSection">
+                    <h3>Desktop Shortcut</h3>
+                    <div class="settings-actions">
+                        <button class="btn btn-primary btn-small" onclick="manageShortcut('create')">➕ Create</button>
+                        <button class="btn btn-warning btn-small" onclick="manageShortcut('remove')">➖ Remove</button>
+                    </div>
+                </section>
+
+                <section class="settings-section" id="databaseSection">
+                    <h3>Database Location</h3>
+                    <p id="dbPathText" class="settings-muted">Loading...</p>
+                    <div class="settings-actions">
+                        <input type="text" id="dbNewPathInput" class="settings-select" placeholder="Full path to a .db file">
+                        <button class="btn btn-primary btn-small" onclick="relocateDatabase()">Set</button>
+                        <button class="btn btn-warning btn-small" onclick="resetDatabaseLocation()">Reset to Default</button>
+                    </div>
+                    <p id="dbRestartNote" class="settings-muted" style="display: none;">Restart the app for this change to take effect.</p>
+                </section>
+
+                <section class="settings-section" id="updateSection">
+                    <h3>Updates</h3>
+                    <p id="versionText" class="settings-muted">Loading...</p>
+                    <button class="btn btn-info btn-small" onclick="checkForUpdates()">🔄 Check for Updates</button>
+                    <p id="updateCheckResult" class="settings-muted" style="display: none;"></p>
+                </section>
+
+                <section class="settings-section">
+                    <h3>About</h3>
+                    <p>License: AGPL-3.0-or-later</p>
+                    <p>
+                        <a href="https://github.com/gerp93/KVG_RGB" target="_blank" rel="noopener">GitHub</a>
+                        &middot; Follows
+                        <a href="https://github.com/gerp93/KVG_Standards" target="_blank" rel="noopener">KVG_Standards</a>
+                    </p>
+                </section>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
