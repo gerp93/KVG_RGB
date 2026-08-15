@@ -1,69 +1,40 @@
-# Release Process - What Went Wrong & How It's Fixed
+# Troubleshooting
 
-## Issue You Encountered
-The `release.ps1` script completed but **didn't create the `.exe` file**.
+## "Could not connect to OpenRGB" / status bar shows a connection error
 
-## Root Cause
-PyInstaller wasn't installed in your virtual environment. The `build_exe.py` script failed silently during the release process.
+1. Make sure OpenRGB is running.
+2. In OpenRGB → Settings, enable **"Start SDK Server"**.
+3. Check the port — KVG RGB expects the default, `6742`.
+4. Restart KVG RGB after starting OpenRGB.
 
-## What We Fixed
-Updated `release.ps1` to:
-1. **Install PyInstaller automatically** (`pip install -r requirements-dev.txt`)
-2. Better error handling to catch build failures
-3. Clear step-by-step output so you know what's happening
+## The app window doesn't appear
 
-## ✅ It's Fixed Now!
+- On Windows, the native window is rendered via WebView2 (bundled with
+  Windows 10/11 and most Edge installs). If it's missing, install the
+  [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+- Check whether the process is already running — look for `KVG_RGB.exe` (or
+  `python -m kvg_rgb.gui` if running from source) in Task Manager; only one
+  instance is needed.
 
-Your executable was successfully created: **`dist\kvg-rgb.exe`** (8.6 MB)
+## Devices don't show up, or colors don't apply
 
----
+- Confirm the device shows up in OpenRGB itself first — if OpenRGB can't
+  see it, KVG RGB can't either.
+- Some devices need to be in "Direct" mode for per-LED control; KVG RGB
+  attempts to set this automatically, but a device that doesn't expose a
+  Direct mode won't support it.
 
-## Testing Your Executable
+## Update check fails or reports the wrong version
 
-```powershell
-# Test the help menu
-.\dist\kvg-rgb.exe --help
+- Update-check only works in a packaged (frozen) build — running from
+  source via `kvg-rgb gui`/`python -m kvg_rgb.gui` always reports the dev
+  version and skips the check.
+- It reads from GitHub Releases directly; a corporate proxy or firewall
+  blocking `api.github.com` will make it fail silently.
 
-# List your devices
-.\dist\kvg-rgb.exe list
+## Something else
 
-# Set a color
-.\dist\kvg-rgb.exe color 255 0 0
-```
-
----
-
-## Next Release - It Will Work Automatically
-
-Next time you run `.\release.ps1`, it will:
-1. Auto-install PyInstaller if needed
-2. Build both the `.exe` AND Python packages
-3. Show clear output for each step
-
----
-
-## Current Distribution Files
-
-After running the release process, you now have:
-
-```
-dist/
-├── kvg-rgb.exe                        # 8.6 MB - Standalone executable
-├── kvg_rgb-0.1.1-py3-none-any.whl    # Python wheel package
-└── kvg-rgb-0.1.1.tar.gz              # Source distribution
-```
-
-**For end users**: Share `kvg-rgb.exe`
-**For Python developers**: Share the `.whl` or upload to PyPI
-
----
-
-## Reminder: First-Time Setup Requirement
-
-The **first time** you build an executable on a new machine, you must install PyInstaller:
-
-```powershell
-pip install -r requirements-dev.txt
-```
-
-The updated `release.ps1` now does this automatically! ✅
+Open an issue at [gerp93/KVG_RGB](https://github.com/gerp93/KVG_RGB/issues)
+with what you were doing and the console output if you have it (run
+`kvg-rgb web` instead of `kvg-rgb gui` to see live console logs alongside
+the UI).

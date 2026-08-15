@@ -62,7 +62,10 @@ Please read the full license in `LICENSE` or at https://www.gnu.org/licenses/agp
 - Requires OpenRGB to be installed and running
 - Requires Python 3.8 or higher
 - Windows 10/11 recommended for full features (Settings Manager)
-- Linux and macOS supported for core functionality
+ - Linux and macOS are supported for core functionality but have not been
+	 extensively tested by the project maintainers. Windows is the primary
+	 development and testing platform and is recommended for full feature
+	 support (Settings Manager, installer, desktop integration).
 
 ---
 
@@ -91,6 +94,18 @@ This Software relies on third-party libraries and services:
 - No internet connection required (except for OpenRGB server communication)
 - No user tracking or personal information gathered
 
+### No Data Exfiltration / No Telemetry
+
+This Software does **not** collect, transmit, or share user data by default. Specifically:
+
+- The application does not phone home, upload telemetry, or transmit device data to third-party services.
+- No personal information or usage analytics are sent to the project maintainers.
+- Any network activity is limited to local connections to OpenRGB or services you explicitly configure.
+
+If you choose to enable additional integrations that send data (for example, a custom cloud sync plugin or external API integration), you will be clearly prompted and must opt in explicitly. Review such integrations' source code and settings before enabling.
+
+If you want to verify there is no data exfiltration, you can inspect the source or use network monitoring tools (for example, Wireshark) while running the software.
+
 ### Stored Data:
 - RGB device settings and configurations
 - Color presets and recent colors
@@ -108,7 +123,7 @@ This Software relies on third-party libraries and services:
 
 ### Contributing:
 - Contributions via pull requests are welcome
-- By contributing, you agree to license your contributions under the MIT License
+- By contributing, you agree to license your contributions under the AGPLv3 (matching the project license)
 - See CONTRIBUTING.md (if available) for guidelines
 
 ---

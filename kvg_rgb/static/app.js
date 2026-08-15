@@ -1792,22 +1792,190 @@ async function enableLEDColorsForDevice(deviceIndex) {
     }
 }
 
-// Open settings manager (Windows only)
+// ----- Settings panel -----
+
 async function openSettings() {
+    document.getElementById('settingsModal').style.display = 'flex';
+    document.getElementById('updateCheckResult').style.display = 'none';
+    await Promise.all([
+        loadSettingsInfo(),
+        loadThemeOptions(),
+    ]);
+}
+
+function closeSettings() {
+    document.getElementById('settingsModal').style.display = 'none';
+}
+
+async function loadSettingsInfo() {
     try {
-        const response = await fetch('/api/settings/launch', {
-            method: 'POST'
-        });
-        
+        const response = await fetch('/api/settings/info');
         const data = await response.json();
-        
-        if (response.ok && data.success) {
-            showStatus('Settings manager launched! Check your taskbar.', 'success');
+        if (!data.success) return;
+
+        document.getElementById('versionText').textContent = `Version ${data.version}`;
+
+        const autostartSection = document.getElementById('autostartSection');
+        const shortcutSection = document.getElementById('shortcutSection');
+        if (data.is_windows) {
+            autostartSection.style.display = '';
+            shortcutSection.style.display = '';
+            document.getElementById('autostartCheckbox').checked = data.autostart_enabled;
         } else {
-            showStatus(data.error || 'Failed to launch settings manager', 'error');
+            autostartSection.style.display = 'none';
+            shortcutSection.style.display = 'none';
+        }
+
+    } catch (error) {
+        console.error('Error loading settings info:', error);
+    }
+
+    await loadDatabaseInfo();
+}
+
+async function loadDatabaseInfo() {
+    try {
+        const response = await fetch('/api/settings/database');
+        const data = await response.json();
+        if (!data.success) return;
+
+        const label = data.is_default ? ' (default)' : ' (custom)';
+        document.getElementById('dbPathText').textContent = data.current_path + label;
+    } catch (error) {
+        console.error('Error loading database info:', error);
+    }
+}
+
+async function relocateDatabase() {
+    const path = document.getElementById('dbNewPathInput').value.trim();
+    if (!path) {
+        showStatus('Enter a path first', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/settings/database/relocate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+        });
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('dbPathText').textContent = data.path;
+            document.getElementById('dbRestartNote').style.display = data.restart_required ? '' : 'none';
+            showStatus('Database location updated', 'success');
+        } else {
+            showStatus(data.error || 'Failed to set database location', 'error');
         }
     } catch (error) {
-        console.error('Error launching settings:', error);
-        showStatus('Error: Could not launch settings manager. This feature is Windows-only.', 'error');
+        console.error('Error relocating database:', error);
+        showStatus('Error setting database location', 'error');
+    }
+}
+
+async function resetDatabaseLocation() {
+    try {
+        const response = await fetch('/api/settings/database/reset', { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('dbRestartNote').style.display = data.restart_required ? '' : 'none';
+            showStatus('Database location reset to default', 'success');
+            await loadDatabaseInfo();
+        } else {
+            showStatus(data.error || 'Failed to reset database location', 'error');
+        }
+    } catch (error) {
+        console.error('Error resetting database location:', error);
+        showStatus('Error resetting database location', 'error');
+    }
+}
+
+async function loadThemeOptions() {
+    try {
+        const response = await fetch('/api/settings/theme');
+        const data = await response.json();
+        if (!data.success) return;
+
+        const select = document.getElementById('themeSelect');
+        select.innerHTML = data.themes.map(theme => {
+            const label = theme.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            return `<option value="${theme}" ${theme === data.theme ? 'selected' : ''}>${label}</option>`;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading themes:', error);
+    }
+}
+
+async function changeTheme(theme) {
+    try {
+        const response = await fetch('/api/settings/theme', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ theme })
+        });
+        const data = await response.json();
+        if (data.success) {
+            document.body.className = `${theme}-theme`;
+        } else {
+            showStatus(data.error || 'Failed to change theme', 'error');
+        }
+    } catch (error) {
+        console.error('Error changing theme:', error);
+    }
+}
+
+async function toggleAutostart(enable) {
+    try {
+        const response = await fetch('/api/settings/autostart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enable })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showStatus(data.message, 'success');
+        } else {
+            showStatus(data.error || 'Failed to update autostart', 'error');
+            document.getElementById('autostartCheckbox').checked = !enable;
+        }
+    } catch (error) {
+        console.error('Error toggling autostart:', error);
+        document.getElementById('autostartCheckbox').checked = !enable;
+    }
+}
+
+async function manageShortcut(action) {
+    try {
+        const response = await fetch('/api/settings/shortcut', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        const data = await response.json();
+        showStatus(data.message || data.error, data.success ? 'success' : 'error');
+    } catch (error) {
+        console.error('Error managing desktop shortcut:', error);
+        showStatus('Error managing desktop shortcut', 'error');
+    }
+}
+
+async function checkForUpdates() {
+    const resultEl = document.getElementById('updateCheckResult');
+    resultEl.style.display = '';
+    resultEl.textContent = 'Checking for updates...';
+
+    try {
+        const response = await fetch('/api/settings/update-check');
+        const data = await response.json();
+        if (!data.success) {
+            resultEl.textContent = data.error || 'Update check failed';
+        } else if (data.update_available) {
+            resultEl.textContent = `Update available: v${data.latest_version} (you have v${data.current_version})`;
+        } else {
+            resultEl.textContent = 'You\'re on the latest version';
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+        resultEl.textContent = 'Error checking for updates';
     }
 }

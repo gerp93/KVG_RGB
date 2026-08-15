@@ -43,7 +43,8 @@ def create_app():
     @app.route('/')
     def index():
         """Main control page"""
-        return render_template('index.html')
+        controller = get_controller()
+        return render_template('index.html', theme=controller.db.get_theme())
     
     @app.route('/api/devices')
     def get_devices():
@@ -909,25 +910,163 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error restoring static colors: {e}")
     
-    @app.route('/api/settings/launch', methods=['POST'])
-    def launch_settings():
-        """Launch the settings manager (Windows only)"""
-        import platform
-        if platform.system() != 'Windows':
-            return jsonify({'success': False, 'error': 'Settings manager is only available on Windows'}), 400
-        
+    @app.route('/api/settings/info')
+    def settings_info():
+        """Basic app info for the About section of the Settings panel"""
+        import sys
+        from kvg_rgb import __version__
+        from kvg_rgb.paths import DATA_DIR
+        from kvg_rgb.autostart import is_autostart_enabled
+
+        return jsonify({
+            'success': True,
+            'version': __version__,
+            'license': 'AGPL-3.0-or-later',
+            'repo_url': 'https://github.com/gerp93/KVG_RGB',
+            'standards_url': 'https://github.com/gerp93/KVG_Standards',
+            'data_dir': str(DATA_DIR),
+            'is_windows': sys.platform == 'win32',
+            'autostart_enabled': is_autostart_enabled() if sys.platform == 'win32' else False,
+        })
+
+    @app.route('/api/settings/autostart', methods=['POST'])
+    def set_autostart():
+        """Enable/disable launching KVG RGB on Windows login"""
+        import sys
+        if sys.platform != 'win32':
+            return jsonify({'success': False, 'error': 'Autostart is only available on Windows'}), 400
+
+        from kvg_rgb.autostart import create_startup_shortcut, remove_startup_shortcut
+
         try:
-            import subprocess
-            import sys
-            
-            # Launch kvg-rgb settings command
-            subprocess.Popen([sys.executable, '-m', 'kvg_rgb.cli', 'settings'])
-            
-            return jsonify({'success': True, 'message': 'Settings manager launched'})
+            data = request.json
+            enable = bool(data.get('enable', False))
+
+            if enable:
+                success, message = create_startup_shortcut()
+            else:
+                success, message = remove_startup_shortcut()
+
+            return jsonify({'success': success, 'message': message, 'enabled': enable if success else not enable})
         except Exception as e:
-            logger.error(f"Error launching settings: {e}")
+            logger.error(f"Error toggling autostart: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
+    @app.route('/api/settings/database')
+    def get_database_location():
+        """Current + default SQLite database path"""
+        from kvg_rgb.paths import db_location
+
+        return jsonify({
+            'success': True,
+            'current_path': str(db_location.get_effective_db_path()),
+            'default_path': str(db_location.get_default_db_path()),
+            'is_default': db_location.is_using_default_location(),
+        })
+
+    @app.route('/api/settings/database/relocate', methods=['POST'])
+    def relocate_database():
+        """Point the app at a different SQLite file (existing or new). Requires a restart to take effect."""
+        from pathlib import Path
+        from kvg_rgb.paths import db_location
+
+        try:
+            data = request.json
+            new_path = data.get('path', '').strip()
+            if not new_path:
+                return jsonify({'success': False, 'error': 'Path is required'}), 400
+
+            # ColorDatabase opens/closes a fresh sqlite3 connection per call rather
+            # than holding one open, so there's no persistent handle to close here.
+            db_location.set_db_path(Path(new_path))
+            return jsonify({'success': True, 'path': new_path, 'restart_required': True})
+        except Exception as e:
+            logger.error(f"Error relocating database: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/settings/database/reset', methods=['POST'])
+    def reset_database_location():
+        """Reset the database path back to the default location. Requires a restart to take effect."""
+        from kvg_rgb.paths import db_location
+
+        try:
+            _global_controller_close()
+            db_location.reset_to_default_db_path()
+            return jsonify({'success': True, 'restart_required': True})
+        except Exception as e:
+            logger.error(f"Error resetting database location: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/settings/update-check')
+    def update_check():
+        """Check GitHub Releases for a newer build (no-op when running from source)"""
+        from kvg_rgb import __version__
+        from kvg_rgb.updater import check
+
+        try:
+            info = check()
+            return jsonify({
+                'success': True,
+                'current_version': __version__,
+                'update_available': info is not None,
+                'latest_version': info['version'] if info else None,
+                'download_url': info['download_url'] if info else None,
+            })
+        except Exception as e:
+            logger.error(f"Error checking for updates: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/settings/shortcut', methods=['POST'])
+    def desktop_shortcut():
+        """Create or remove a Desktop shortcut that launches the app"""
+        import sys
+        if sys.platform != 'win32':
+            return jsonify({'success': False, 'error': 'Shortcuts are only available on Windows'}), 400
+
+        from kvg_rgb.autostart import create_desktop_shortcut, remove_desktop_shortcut
+
+        try:
+            data = request.json
+            action = data.get('action')
+
+            if action == 'create':
+                success, message = create_desktop_shortcut()
+            elif action == 'remove':
+                success, message = remove_desktop_shortcut()
+            else:
+                return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
+
+            return jsonify({'success': success, 'message': message})
+        except Exception as e:
+            logger.error(f"Error managing desktop shortcut: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/settings/theme')
+    def get_theme():
+        """Current theme + the full list of available VisualAssault themes"""
+        from kvg_rgb.database import VALID_THEMES
+
+        controller = get_controller()
+        return jsonify({'success': True, 'theme': controller.db.get_theme(), 'themes': VALID_THEMES})
+
+    @app.route('/api/settings/theme', methods=['POST'])
+    def set_theme():
+        """Persist the chosen theme (applied client-side without a reload)"""
+        from kvg_rgb.database import VALID_THEMES
+
+        try:
+            data = request.json
+            theme = data.get('theme')
+            if theme not in VALID_THEMES:
+                return jsonify({'success': False, 'error': f'Unknown theme: {theme}'}), 400
+
+            controller = get_controller()
+            controller.db.set_theme(theme)
+            return jsonify({'success': True, 'theme': theme})
+        except Exception as e:
+            logger.error(f"Error setting theme: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     return app
 
 
