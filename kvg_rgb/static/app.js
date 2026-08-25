@@ -639,6 +639,97 @@ async function toggleZoneExclusion(deviceName, deviceIndex, zoneIndex) {
 }
 
 // Reset all devices to Direct mode and reapply colors
+// ----- Live logs -----
+
+let logsPollTimer = null;
+let logsSeq = 0;
+let logsLines = [];
+const MAX_LOG_LINES = 1000;
+
+async function openLogs() {
+    document.getElementById('logsModal').style.display = 'flex';
+
+    // Load the keepalive toggle state alongside the logs
+    try {
+        const r = await fetch('/api/settings/keepalive');
+        const d = await r.json();
+        if (d.success) {
+            document.getElementById('keepaliveCheckbox').checked = d.enabled;
+        }
+    } catch (e) {
+        console.error('Error loading keepalive state:', e);
+    }
+
+    await pollLogs();
+    if (logsPollTimer === null) {
+        logsPollTimer = setInterval(pollLogs, 1000);
+    }
+}
+
+function closeLogs() {
+    document.getElementById('logsModal').style.display = 'none';
+    if (logsPollTimer !== null) {
+        clearInterval(logsPollTimer);
+        logsPollTimer = null;
+    }
+}
+
+async function pollLogs() {
+    try {
+        const response = await fetch(`/api/logs?since=${logsSeq}`);
+        const data = await response.json();
+        if (!data.success) return;
+
+        if (data.entries.length > 0) {
+            for (const e of data.entries) {
+                logsLines.push(`[${e.time}] ${e.message}`);
+            }
+            if (logsLines.length > MAX_LOG_LINES) {
+                logsLines = logsLines.slice(-MAX_LOG_LINES);
+            }
+            logsSeq = data.latest;
+
+            const out = document.getElementById('logsOutput');
+            out.textContent = logsLines.join('\n');
+            if (document.getElementById('logsAutoscroll').checked) {
+                out.scrollTop = out.scrollHeight;
+            }
+        }
+    } catch (error) {
+        console.error('Error polling logs:', error);
+    }
+}
+
+async function clearLogs() {
+    try {
+        await fetch('/api/logs/clear', { method: 'POST' });
+        logsLines = [];
+        logsSeq = 0;
+        document.getElementById('logsOutput').textContent = '';
+    } catch (error) {
+        console.error('Error clearing logs:', error);
+    }
+}
+
+function copyLogs() {
+    const text = logsLines.join('\n');
+    navigator.clipboard.writeText(text)
+        .then(() => updateStatus('✓ Logs copied to clipboard', 'success'))
+        .catch(() => updateStatus('✗ Could not copy logs', 'error'));
+}
+
+async function toggleKeepalive(enabled) {
+    try {
+        await fetch('/api/settings/keepalive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+    } catch (error) {
+        console.error('Error toggling keepalive:', error);
+    }
+}
+
 // Force a fresh OpenRGB connection — escape hatch if the lights stop responding
 async function reconnectOpenRGB() {
     updateStatus('⏳ Reconnecting to OpenRGB...', 'info');

@@ -26,6 +26,7 @@
                     <h2>🎨 Device & Zone Control</h2>
                 </div>
                 <div class="card-header-actions">
+                    <button class="btn btn-info btn-small" onclick="openLogs()" title="See a live log of what the app is sending to your hardware">📋 Logs</button>
                     <button class="btn btn-info btn-small" onclick="reconnectOpenRGB()" title="Reconnect to OpenRGB if the lights have stopped responding">🔌 Reconnect</button>
                     <button class="btn btn-warning btn-small" onclick="resetDeviceModes()" title="Force devices to Direct mode and reapply colors">🔄 Reset All</button>
                 </div>
@@ -155,6 +156,32 @@
                         <a href="https://github.com/gerp93/KVG_Standards" target="_blank" rel="noopener">KVG_Standards</a>
                     </p>
                 </section>
+            </div>
+        </div>
+    </div>
+
+    <div id="logsModal" class="modal-overlay" style="display: none;" onclick="if (event.target === this) closeLogs()">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h2>📋 Live Logs</h2>
+                <button class="modal-close" onclick="closeLogs()" title="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="logs-toolbar">
+                    <label class="settings-checkbox">
+                        <input type="checkbox" id="logsAutoscroll" checked>
+                        Auto-scroll
+                    </label>
+                    <label class="settings-checkbox">
+                        <input type="checkbox" id="keepaliveCheckbox" onchange="toggleKeepalive(this.checked)">
+                        Keepalive (re-assert colors)
+                    </label>
+                    <div class="settings-actions">
+                        <button class="btn btn-info btn-small" onclick="copyLogs()">📄 Copy</button>
+                        <button class="btn btn-warning btn-small" onclick="clearLogs()">🧹 Clear</button>
+                    </div>
+                </div>
+                <pre id="logsOutput" class="logs-output">Waiting for log output...</pre>
             </div>
         </div>
     </div>

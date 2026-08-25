@@ -6,6 +6,7 @@ Provides a local web UI for controlling RGB devices
 from flask import Flask, render_template, jsonify, request
 from .core import RGBController
 from .effects import EffectManager
+from .logbuffer import get_handler
 import webbrowser
 import threading
 import time
@@ -16,6 +17,11 @@ logger = logging.getLogger(__name__)
 # Global controller instance to maintain state across requests
 _global_controller = None
 _effect_manager = None
+_keepalive_thread = None
+_keepalive_enabled = True
+
+# How often the keepalive re-asserts mode + colors, in seconds.
+KEEPALIVE_INTERVAL = 5.0
 
 def get_controller():
     """Get or create the global controller instance"""
@@ -36,9 +42,44 @@ def get_effect_manager():
     return _effect_manager
 
 
+def _keepalive_loop():
+    """
+    Periodically re-assert Direct mode + stored colors.
+
+    ASUS Aura boards fall back to their onboard effect when the SDK goes
+    quiet, and since the protocol is write-only nothing tells us it happened
+    — the app keeps reporting success while the lights cycle a hardware
+    pattern. Re-asserting on a timer is what actually holds control.
+    """
+    logger.warning(f"🫀 Keepalive started (every {KEEPALIVE_INTERVAL:.0f}s)")
+    while True:
+        time.sleep(KEEPALIVE_INTERVAL)
+        if not _keepalive_enabled:
+            continue
+        try:
+            controller = get_controller()
+            applied = controller.reassert_colors()
+            if applied:
+                logger.info(f"🫀 Keepalive re-asserted {applied} zone colors")
+        except Exception as e:
+            logger.error(f"🫀 Keepalive error: {e}")
+
+
+def start_keepalive():
+    """Start the keepalive thread once per process."""
+    global _keepalive_thread
+    if _keepalive_thread is None:
+        _keepalive_thread = threading.Thread(target=_keepalive_loop, daemon=True)
+        _keepalive_thread.start()
+
+
 def create_app():
     """Create and configure the Flask app"""
     app = Flask(__name__)
+
+    # Capture logs in memory so the UI's Logs tab can show them. The packaged
+    # app is windowed (no console), so this is the only way to see them.
+    get_handler()
     
     @app.route('/')
     def index():
@@ -365,8 +406,10 @@ def create_app():
                 if controller.config.is_device_excluded(device.name):
                     continue
                 
-                # Force device to Direct mode
-                controller._set_direct_mode(device)
+                # Force device to Direct mode, and persist it to the controller's
+                # onboard memory so it survives a reboot / power cycle. Only done
+                # here (an explicit user action) because it writes to flash.
+                controller._set_direct_mode(device, save=True)
                 
                 # Reapply all zone colors
                 for zone_idx in range(len(device.zones)):
@@ -385,6 +428,40 @@ def create_app():
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    @app.route('/api/logs')
+    def get_logs():
+        """Live log feed for the Logs tab (poll with ?since=<seq>)"""
+        try:
+            since = int(request.args.get('since', 0))
+        except (TypeError, ValueError):
+            since = 0
+
+        entries, latest = get_handler().entries_since(since)
+        return jsonify({'success': True, 'entries': entries, 'latest': latest})
+
+    @app.route('/api/logs/clear', methods=['POST'])
+    def clear_logs():
+        """Clear the in-memory log buffer"""
+        get_handler().clear()
+        logger.warning("🧹 Log buffer cleared")
+        return jsonify({'success': True})
+
+    @app.route('/api/settings/keepalive', methods=['GET', 'POST'])
+    def keepalive_setting():
+        """Get or set whether the keepalive re-asserts colors periodically"""
+        global _keepalive_enabled
+        if request.method == 'POST':
+            try:
+                _keepalive_enabled = bool(request.json.get('enabled', True))
+                logger.warning(f"🫀 Keepalive {'enabled' if _keepalive_enabled else 'disabled'}")
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': True,
+            'enabled': _keepalive_enabled,
+            'interval': KEEPALIVE_INTERVAL,
+        })
+
     @app.route('/api/reconnect', methods=['POST'])
     def reconnect_openrgb():
         """Force a fresh connection to OpenRGB — escape hatch if lights stop responding"""
@@ -928,6 +1005,8 @@ def create_app():
                 
                 if restored_count > 0:
                     logger.warning(f"🎨 Restored {restored_count} static colors on startup")
+
+                start_keepalive()
             except Exception as e:
                 logger.error(f"Error restoring static colors: {e}")
     

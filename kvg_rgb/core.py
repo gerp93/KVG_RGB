@@ -279,39 +279,99 @@ class RGBController:
         device.update()
         logger.warning(f"   ✅ Device updated\n")
     
-    def _set_direct_mode(self, device):
-        """Helper to set device to Direct mode (or Custom/Static) for SDK control"""
+    def _set_direct_mode(self, device, save=False):
+        """
+        Put a device into a directly-addressable mode (Direct > Custom > Static).
+
+        This deliberately re-sends the mode instead of returning early when
+        `device.active_mode` already looks right. That value is OpenRGB's
+        *cached* copy of the controller state, and these controllers are
+        effectively write-only — so when a board quietly falls back to its
+        onboard effect (ASUS Aura boards do this when they stop receiving
+        updates), the cache still claims "Direct" while the lights are
+        cycling a hardware pattern. Trusting it meant we skipped the switch
+        and then wrote colors the board was ignoring.
+
+        `save` persists the mode to the controller's onboard memory. That
+        survives reboots but writes to flash, so it's reserved for explicit
+        user actions (Reset All) rather than every color change.
+        """
         try:
-            # Check current mode first
             current_mode = device.modes[device.active_mode] if device.active_mode < len(device.modes) else None
-            
-            # Look for modes in order of preference: Direct > Custom > Static
-            mode_preferences = ['direct', 'custom', 'static']
-            
-            for preferred_mode in mode_preferences:
-                # If already in a preferred mode, don't switch
-                if current_mode and preferred_mode in current_mode.name.lower():
-                    logger.warning(f"   ✓ Already in {current_mode.name} mode")
-                    return
-                
-                # Otherwise try to find and set the mode
+            current_name = current_mode.name if current_mode else "unknown"
+            logger.info(f"   modes on {device.name}: {[m.name for m in device.modes]}")
+            logger.info(f"   OpenRGB's cached active mode: {current_name!r}")
+
+            # Modes in order of preference
+            for preferred_mode in ('direct', 'custom', 'static'):
                 for mode in device.modes:
-                    if preferred_mode in mode.name.lower():
-                        logger.warning(f"   → Switching to {mode.name} mode...")
+                    if preferred_mode not in mode.name.lower():
+                        continue
+
+                    already_selected = current_mode is not None and mode.name == current_mode.name
+                    logger.warning(
+                        f"   → Asserting {mode.name!r} mode"
+                        f" (cached said {current_name!r}{', save=True' if save else ''})"
+                    )
+                    try:
+                        device.set_mode(mode, save=save)
+                    except Exception as e:
+                        # Not every controller implements SAVEMODE
+                        logger.warning(f"   ⚠️  save failed ({e}) — retrying without save")
                         device.set_mode(mode)
-                        # Small delay to let the mode switch settle
-                        import time
-                        time.sleep(0.2)
-                        logger.warning(f"   ✓ Set to {mode.name} mode")
-                        return
-            
-            # If no preferred mode found, just log current mode
-            if current_mode:
-                logger.warning(f"   ℹ️  Using current mode: {current_mode.name}")
+
+                    if not already_selected:
+                        time.sleep(0.2)  # let the mode switch settle
+                    logger.warning(f"   ✓ Mode set to {mode.name}")
+                    return
+
+            logger.warning(
+                f"   ⚠️  {device.name} has no Direct/Custom/Static mode — "
+                f"staying in {current_name!r}; colors may be ignored by the hardware"
+            )
         except Exception as e:
             # If mode switching fails, log but continue anyway
             logger.warning(f"   ⚠️  Could not set mode: {e}")
-            pass
+
+    def reassert_colors(self):
+        """
+        Re-apply every stored static color to the hardware.
+
+        Used by the keepalive: ASUS Aura controllers revert to their onboard
+        effect if the SDK stops talking to them, and because the writes are
+        one-way nothing reports that it happened. Periodically re-asserting
+        both the mode and the colors is what keeps the board under our
+        control instead of drifting back to its default cycle.
+
+        Zones running a software effect are skipped — the effects thread
+        already drives those, and writing over it would fight.
+        """
+        self.ensure_connected()
+        applied = 0
+        for device_idx, device in enumerate(self.client.devices):
+            if self.config.is_device_excluded(device.name):
+                continue
+
+            zone_colors = {}
+            for zone_idx in range(len(device.zones)):
+                effect = self.db.get_effect(device_idx, zone_idx)
+                if effect and effect[0] != 'static':
+                    continue  # effects thread owns this zone
+                color = self.db.get_color(device_idx, zone_idx)
+                if color:
+                    brightness, saturation = self.db.get_brightness_saturation(device_idx, zone_idx)
+                    zone_colors[zone_idx] = apply_brightness_saturation(*color, brightness, saturation)
+
+            if not zone_colors:
+                continue
+
+            self._set_direct_mode(device)
+            for zone_idx, (r, g, b) in zone_colors.items():
+                device.zones[zone_idx].set_color(RGBColor(r, g, b))
+                applied += 1
+            device.update()
+
+        return applied
     
     def rainbow_effect(self, duration=60, speed=1.0, device_index=None):
         """
