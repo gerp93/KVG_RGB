@@ -20,6 +20,7 @@ and its `REPO_SCOPE.md` entry for that). Just what's not built yet.
 ## Fixes
 
 - Zone flash and individual LED flash don't visibly work on keyboards (works fine on motherboards/other devices) — likely a keyboard firmware/driver limitation, low priority
+- Device/zone settings are keyed by OpenRGB's device *index*. If OpenRGB enumerates devices in a different order (device unplugged, driver change), saved colors/names/brightness can attach to the wrong device. Keying on device name + serial instead would make this stable across re-enumeration.
 
 ---
 

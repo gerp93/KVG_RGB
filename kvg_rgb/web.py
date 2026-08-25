@@ -385,6 +385,27 @@ def create_app():
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    @app.route('/api/reconnect', methods=['POST'])
+    def reconnect_openrgb():
+        """Force a fresh connection to OpenRGB — escape hatch if lights stop responding"""
+        try:
+            controller = get_controller()
+            reconnected = controller.ensure_connected(force=True)
+            device_count = len(controller.client.devices)
+            return jsonify({
+                'success': True,
+                'reconnected': reconnected,
+                'devices': device_count,
+                'message': (
+                    f'Reconnected to OpenRGB — {device_count} devices'
+                    if reconnected else
+                    f'Connection is healthy — {device_count} devices'
+                ),
+            })
+        except Exception as e:
+            logger.error(f"Error reconnecting to OpenRGB: {e}")
+            return jsonify({'success': False, 'error': f'Could not reach OpenRGB: {e}'}), 500
+
     @app.route('/api/zone/resize', methods=['POST'])
     def resize_zone():
         """Resize a zone (change number of LEDs)"""

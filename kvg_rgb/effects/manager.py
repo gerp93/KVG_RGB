@@ -111,35 +111,63 @@ class EffectManager:
         logger.info(f"Loaded {len(effects)} effects from database")
     
     def _run_effects_loop(self):
-        """Main effect loop running in background thread."""
-        # Create a separate OpenRGB client for the effect thread
+        """Main effect loop running in background thread.
+
+        This thread owns its own OpenRGB connection, so it needs the same
+        reconnect handling as RGBController.ensure_connected() — a half-open
+        socket silently swallows effect writes, and previously any error here
+        killed the thread outright, so effects stayed dead until the app was
+        restarted.
+        """
         client = None
-        
+        # Effects run at ~20 FPS; probe the connection roughly every 5s.
+        PROBE_EVERY = 100
+        ticks = 0
+
         try:
-            client = OpenRGBClient(name="KVG_RGB_Effects", address=self.host, port=self.port)
-            logger.info("Effect manager connected to OpenRGB")
-            
             while self.running:
-                with self.lock:
-                    effects_to_apply = dict(self.active_effects)
-                
-                if effects_to_apply:
-                    # Apply each effect
-                    for (device_idx, zone_idx), effect_data in effects_to_apply.items():
+                try:
+                    if client is None:
+                        client = OpenRGBClient(name="KVG_RGB_Effects", address=self.host, port=self.port)
+                        logger.info("Effect manager connected to OpenRGB")
+
+                    # Writes are write-only and never notice a dead socket, so
+                    # round-trip periodically to force the failure to surface.
+                    ticks += 1
+                    if ticks % PROBE_EVERY == 0:
+                        client.comms.requestDeviceNum()
+
+                    with self.lock:
+                        effects_to_apply = dict(self.active_effects)
+
+                    if effects_to_apply:
+                        # Apply each effect
+                        for (device_idx, zone_idx), effect_data in effects_to_apply.items():
+                            try:
+                                self._apply_effect(client, device_idx, zone_idx, effect_data)
+                            except ConnectionError:
+                                # Connection is gone - let the outer handler rebuild it
+                                raise
+                            except Exception as e:
+                                logger.error(f"Error applying effect to device {device_idx}, zone {zone_idx}: {e}")
+
+                    time.sleep(0.05)  # 20 FPS update rate
+
+                except Exception as e:
+                    logger.error(f"Effect manager lost its OpenRGB connection, will retry: {e}")
+                    if client is not None:
                         try:
-                            self._apply_effect(client, device_idx, zone_idx, effect_data)
-                        except Exception as e:
-                            logger.error(f"Error applying effect to device {device_idx}, zone {zone_idx}: {e}")
-                
-                time.sleep(0.05)  # 20 FPS update rate
-                
-        except Exception as e:
-            logger.error(f"Effect manager loop error: {e}")
+                            client.disconnect()
+                        except Exception:
+                            pass
+                        client = None
+                    # Back off before retrying so a downed OpenRGB doesn't spin the CPU
+                    time.sleep(2.0)
         finally:
             if client:
                 try:
                     client.disconnect()
-                except:
+                except Exception:
                     pass
     
     def _apply_effect(self, client: OpenRGBClient, device_idx: int, zone_idx: int, effect_data: dict):

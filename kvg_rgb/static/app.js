@@ -639,6 +639,29 @@ async function toggleZoneExclusion(deviceName, deviceIndex, zoneIndex) {
 }
 
 // Reset all devices to Direct mode and reapply colors
+// Force a fresh OpenRGB connection — escape hatch if the lights stop responding
+async function reconnectOpenRGB() {
+    updateStatus('⏳ Reconnecting to OpenRGB...', 'info');
+
+    try {
+        const response = await fetch('/api/reconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            updateStatus('✓ ' + data.message, 'success');
+            await loadDevices(); // Refresh UI — device list may have changed
+        } else {
+            updateStatus('✗ ' + data.error, 'error');
+        }
+    } catch (error) {
+        updateStatus('✗ Failed to reconnect to OpenRGB', 'error');
+        console.error('Error:', error);
+    }
+}
+
 async function resetDeviceModes() {
     if (!confirm('Force all devices back to Direct mode and reapply colors?\n\nUse this if devices are stuck in hardware modes (like rainbow).')) {
         return;

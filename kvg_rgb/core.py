@@ -51,13 +51,65 @@ def apply_brightness_saturation(r, g, b, brightness=100, saturation=100):
 class RGBController:
     """Core RGB controller class"""
     
+    # How long a successful liveness probe is trusted before probing again.
+    _VERIFY_TTL = 1.0
+
     def __init__(self, host='localhost', port=6742):
         """Initialize connection to OpenRGB"""
+        self.host = host
+        self.port = port
+        self._conn_lock = threading.Lock()
+        self._last_verified = 0.0
         self.client = OpenRGBClient(name="KVG_RGB", address=host, port=port)
         self.config = get_config()
         # Use database for persistent color storage
         self.db = ColorDatabase()
-        
+
+    def ensure_connected(self, force=False):
+        """
+        Make sure the SDK connection can actually reach OpenRGB, reconnecting
+        if it can't. Returns True if a reconnect happened.
+
+        Why this is needed: openrgb-python's `connected` is just
+        `sock is not None`, and every color write (Zone.set_color ->
+        send_header/send_data) is write-only — it never reads a response. So
+        when OpenRGB restarts, the machine sleeps, or the SDK server is
+        toggled off and on, the socket goes half-open: sock.send() still
+        succeeds into the kernel buffer, nothing raises, and we log
+        "Device updated" while the lights never change — until the process is
+        restarted. A request/response round-trip is the only thing that
+        actually detects that, so do one before touching hardware.
+        """
+        with self._conn_lock:
+            if not force and (time.monotonic() - self._last_verified) < self._VERIFY_TTL:
+                return False
+
+            if self._probe():
+                self._last_verified = time.monotonic()
+                return False
+
+            logger.warning("⚠️  OpenRGB connection is dead — reconnecting")
+            self._reconnect()
+            self._last_verified = time.monotonic()
+            return True
+
+    def _probe(self):
+        """Round-trip the SDK server to see whether it's really still there."""
+        try:
+            self.client.comms.requestDeviceNum()
+            return True
+        except Exception:
+            return False
+
+    def _reconnect(self):
+        """Drop the dead client and build a fresh one (re-fetches all devices)."""
+        try:
+            self.client.disconnect()
+        except Exception:
+            pass
+        self.client = OpenRGBClient(name="KVG_RGB", address=self.host, port=self.port)
+        logger.warning(f"✅ Reconnected to OpenRGB ({len(self.client.devices)} devices)")
+
     def disconnect(self):
         """Disconnect from OpenRGB"""
         self.client.disconnect()
@@ -75,13 +127,15 @@ class RGBController:
         Args:
             include_excluded: If True, return all devices. If False, filter out excluded ones.
         """
+        self.ensure_connected()
         devices = self.client.devices
         if include_excluded:
             return devices
         return [d for d in devices if not self.config.is_device_excluded(d.name)]
-    
+
     def get_all_devices(self):
         """Get all devices including excluded ones (for management UI)"""
+        self.ensure_connected()
         return self.client.devices
     
     def set_color(self, r, g, b, device_index=None):
@@ -92,6 +146,7 @@ class RGBController:
             r, g, b: RGB values (0-255)
             device_index: Specific device index, or None for all devices
         """
+        self.ensure_connected()
         if device_index is not None:
             device = self.client.devices[device_index]
             # Check if device is excluded
@@ -171,6 +226,7 @@ class RGBController:
             zone_index: Zone index within the device
             r, g, b: RGB values (0-255)
         """
+        self.ensure_connected()
         device = self.client.devices[device_index]
         
         # Check if device is excluded
