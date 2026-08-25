@@ -33,11 +33,11 @@ KVG_RGB/
 │   ├── core.py           # RGB controller class
 │   ├── web.py            # Flask backend + routes
 │   ├── gui.py            # Desktop window entry point (pywebview)
+│   ├── database.py       # SQLite persistence
+│   ├── updater.py        # Self-update check
 │   └── cli.py            # CLI interface
-├── main.py               # CLI-exe entry point
-├── build_exe.py          # CLI-only executable builder
 ├── requirements.txt      # Dependencies
-├── requirements-dev.txt  # Dev dependencies
+├── requirements-dev.txt  # Dev dependencies (PyInstaller)
 ├── setup.py              # Package setup
 ├── pyproject.toml        # Modern package config
 └── README.md             # Full documentation
