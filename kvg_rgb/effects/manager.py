@@ -3,6 +3,7 @@ Effect manager for per-zone animated effects.
 """
 from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor
+from ..core import apply_brightness_saturation
 import time
 import math
 import threading
@@ -30,6 +31,10 @@ class EffectManager:
         self.thread = None
         self.active_effects = {}  # {(device_idx, zone_idx): {'type': ..., 'params': ...}}
         self.lock = threading.Lock()
+        # Set by load_effects_from_db(); used to pick up brightness/saturation
+        # changes for zones that are currently running an effect.
+        self.db = None
+        self._adjustments = {}  # {(device_idx, zone_idx): (brightness, saturation)}
     
     def start(self):
         """Start the effect manager thread."""
@@ -97,6 +102,7 @@ class EffectManager:
         Args:
             db: ColorDatabase instance
         """
+        self.db = db
         effects = db.get_all_effects()
         with self.lock:
             for device_idx, zone_idx, effect_type, effect_params in effects:
@@ -109,6 +115,28 @@ class EffectManager:
                         'start_time': time.time()
                     }
         logger.info(f"Loaded {len(effects)} effects from database")
+
+    def _refresh_adjustments(self):
+        """
+        Re-read brightness/saturation for the zones currently running effects.
+
+        Effects generate their colors from elapsed time, so without this they
+        ignored the brightness/saturation sliders entirely — moving those did
+        nothing while any effect was running. Polled here (roughly once a
+        second) rather than pushed from the API so it stays correct no matter
+        how the values change.
+        """
+        if self.db is None:
+            return
+        with self.lock:
+            keys = list(self.active_effects.keys())
+        adjustments = {}
+        for device_idx, zone_idx in keys:
+            try:
+                adjustments[(device_idx, zone_idx)] = self.db.get_brightness_saturation(device_idx, zone_idx)
+            except Exception:
+                adjustments[(device_idx, zone_idx)] = (100, 100)
+        self._adjustments = adjustments
     
     def _run_effects_loop(self):
         """Main effect loop running in background thread.
@@ -122,6 +150,8 @@ class EffectManager:
         client = None
         # Effects run at ~20 FPS; probe the connection roughly every 5s.
         PROBE_EVERY = 100
+        # ...and re-read brightness/saturation roughly once a second.
+        ADJUST_EVERY = 20
         ticks = 0
 
         try:
@@ -136,6 +166,9 @@ class EffectManager:
                     ticks += 1
                     if ticks % PROBE_EVERY == 0:
                         client.comms.requestDeviceNum()
+
+                    if ticks % ADJUST_EVERY == 1:
+                        self._refresh_adjustments()
 
                     with self.lock:
                         effects_to_apply = dict(self.active_effects)
@@ -198,9 +231,9 @@ class EffectManager:
         elapsed = time.time() - effect_data['start_time']
         speed = params.get('speed', 1.0)
 
+        color = None
         if effect_type == 'rainbow':
             color = self._rainbow_color(elapsed, speed)
-            zone.set_color(color, fast=True)
 
         elif effect_type == 'breathing':
             base_color = params.get('color', {'r': 255, 'g': 0, 'b': 0})
@@ -211,12 +244,10 @@ class EffectManager:
                 elapsed,
                 speed
             )
-            zone.set_color(color, fast=True)
 
         elif effect_type == 'wave':
             # Wave effect - color shifts through spectrum
             color = self._wave_color(elapsed, speed, zone_idx)
-            zone.set_color(color, fast=True)
 
         elif effect_type == 'cycle':
             # Cycle through preset colors
@@ -226,7 +257,17 @@ class EffectManager:
                 {'r': 0, 'g': 0, 'b': 255}
             ])
             color = self._cycle_color(colors, elapsed, speed)
-            zone.set_color(color, fast=True)
+
+        if color is None:
+            return
+
+        # Honor the zone's brightness/saturation, same as a static color does.
+        brightness, saturation = self._adjustments.get((device_idx, zone_idx), (100, 100))
+        if brightness != 100 or saturation != 100:
+            r, g, b = apply_brightness_saturation(color.red, color.green, color.blue, brightness, saturation)
+            color = RGBColor(r, g, b)
+
+        zone.set_color(color, fast=True)
     
     def _rainbow_color(self, elapsed: float, speed: float) -> RGBColor:
         """Generate rainbow color based on time."""

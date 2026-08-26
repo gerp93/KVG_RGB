@@ -38,28 +38,30 @@
                 <!-- Left Column: Color Controls -->
                 <div class="color-controls-panel">
                     <h3>Multi-Zone Color Control</h3>
-                    
+
+                    <div class="selection-summary" id="selectionText">No devices or zones selected</div>
+
                     <!-- Color Picker -->
-                    <div class="control-section">
+                    <div class="control-section" id="colorSection">
                         <label class="control-label">Pick Color:</label>
                         <input type="color" id="colorPicker" value="#FF0000" class="color-input">
-                        <button class="btn btn-primary btn-full" onclick="applyColor()">Apply to Selected</button>
+                        <button class="btn btn-primary btn-full" id="applyColorBtn" onclick="applyColor()">Apply to Selected</button>
                     </div>
-                    
+
                     <!-- Brightness -->
-                    <div class="control-section">
+                    <div class="control-section" id="brightnessSection">
                         <label class="control-label">Brightness:</label>
                         <input type="range" id="brightnessSlider" min="0" max="100" value="100" class="slider-full">
                         <span id="brightnessValue" class="slider-value">100%</span>
                     </div>
-                    
+
                     <!-- Saturation -->
-                    <div class="control-section">
+                    <div class="control-section" id="saturationSection">
                         <label class="control-label">Saturation:</label>
                         <input type="range" id="saturationSlider" min="0" max="100" value="100" class="slider-full">
                         <span id="saturationValue" class="slider-value">100%</span>
                     </div>
-                    
+
                     <!-- Preset Colors -->
                     <div class="control-section">
                         <label class="control-label">Quick Colors:</label>

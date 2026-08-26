@@ -4,7 +4,7 @@ Flask web interface for KVG RGB Controller
 Provides a local web UI for controlling RGB devices
 """
 from flask import Flask, render_template, jsonify, request
-from .core import RGBController
+from .core import RGBController, apply_brightness_saturation
 from .effects import EffectManager
 from .logbuffer import get_handler
 import webbrowser
@@ -40,6 +40,29 @@ def get_effect_manager():
         controller = get_controller()
         _effect_manager.load_effects_from_db(controller.db)
     return _effect_manager
+
+
+def build_led_colors(controller, device_index, zone_index, num_leds):
+    """
+    Build the RGBColor list for a zone's per-LED colors.
+
+    Per-LED colors are stored raw in the database and adjusted here at write
+    time, exactly like static zone colors are — which is what makes the
+    brightness/saturation sliders behave the same in gradient/per-LED mode as
+    they do everywhere else. LEDs with no stored color fall back to the zone
+    color.
+    """
+    from openrgb.utils import RGBColor
+
+    led_colors = controller.db.get_led_colors(device_index, zone_index)
+    fallback = controller.db.get_color(device_index, zone_index) or (0, 0, 0)
+    brightness, saturation = controller.db.get_brightness_saturation(device_index, zone_index)
+
+    colors = []
+    for i in range(num_leds):
+        r, g, b = led_colors.get(i, fallback)
+        colors.append(RGBColor(*apply_brightness_saturation(r, g, b, brightness, saturation)))
+    return colors
 
 
 def _keepalive_loop():
@@ -83,9 +106,23 @@ def create_app():
     
     @app.route('/')
     def index():
-        """Main control page"""
-        controller = get_controller()
-        return render_template('index.html', theme=controller.db.get_theme())
+        """
+        Main control page.
+
+        Deliberately does NOT go through get_controller(): that opens the
+        OpenRGB connection, so with OpenRGB closed this route raised and the
+        user got a bare Flask "Internal Server Error" page instead of the app
+        — no Reconnect button, no Settings, no way to see what was wrong. The
+        theme lives in SQLite and needs no hardware, so render regardless and
+        let the device list report the connection problem.
+        """
+        from .database import ColorDatabase, DEFAULT_THEME
+        try:
+            theme = ColorDatabase().get_theme()
+        except Exception as e:
+            logger.error(f"Could not read theme, falling back to default: {e}")
+            theme = DEFAULT_THEME
+        return render_template('index.html', theme=theme)
     
     @app.route('/api/devices')
     def get_devices():
@@ -142,9 +179,19 @@ def create_app():
                 })
             
             return jsonify({'success': True, 'devices': device_list})
+        except (ConnectionError, OSError) as e:
+            # The most common failure by far, and "timed out" on its own tells
+            # the user nothing they can act on.
+            logger.error(f"Could not reach OpenRGB while listing devices: {e}")
+            return jsonify({
+                'success': False,
+                'error': "Can't reach OpenRGB — check that it's running and that "
+                         "\"Start SDK Server\" is enabled in its settings, then click Reconnect.",
+                'detail': str(e),
+            }), 503
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/device/toggle', methods=['POST'])
     def toggle_device():
         """Toggle device exclusion status"""
@@ -336,13 +383,27 @@ def create_app():
             
             controller = get_controller()
             controller.db.set_brightness_saturation(device_index, zone_index, brightness, saturation)
-            
-            # Re-apply current color with new brightness/saturation
-            color = controller.db.get_color(device_index, zone_index)
-            if color:
-                r, g, b = color
-                controller.set_zone_color(device_index, zone_index, r, g, b)
-            
+
+            # Re-apply whatever this zone is actually showing. Which of the three
+            # modes it's in matters: blindly writing the flat zone color here used
+            # to wipe a gradient off the hardware the moment you touched a slider.
+            effect = controller.db.get_effect(device_index, zone_index)
+            if effect and effect[0] != 'static':
+                # The effects thread re-reads brightness/saturation on its own —
+                # writing here would just fight it for a frame.
+                pass
+            elif controller.db.is_led_control_enabled(device_index, zone_index):
+                device = controller.client.devices[device_index]
+                zone = device.zones[zone_index]
+                num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
+                zone.set_colors(build_led_colors(controller, device_index, zone_index, num_leds), fast=True)
+                device.show()
+            else:
+                color = controller.db.get_color(device_index, zone_index)
+                if color:
+                    r, g, b = color
+                    controller.set_zone_color(device_index, zone_index, r, g, b)
+
             return jsonify({
                 'success': True,
                 'device': device_index,
@@ -382,6 +443,11 @@ def create_app():
                 params_json = json.dumps(effect_params) if effect_params else None
                 controller.db.set_effect(device_index, zone_index, effect_type, params_json)
                 effect_manager.set_effect(device_index, zone_index, effect_type, params_json)
+                # An effect owns the whole zone, so it and per-LED/gradient control
+                # are mutually exclusive. Turn LED control off so the stored state
+                # matches what the hardware is actually doing — the saved LED colors
+                # stay in the database and come back when it's re-enabled.
+                controller.db.set_led_control_enabled(device_index, zone_index, False)
             
             return jsonify({
                 'success': True,
@@ -700,25 +766,9 @@ def create_app():
             device = controller.client.devices[device_index]
             zone = device.zones[zone_index]
             
-            # Get all LED colors for this zone
-            led_colors = controller.db.get_led_colors(device_index, zone_index)
-            
-            # Create LED color array - use zone.leds instead of zone.leds_count
-            from openrgb.utils import RGBColor
-            colors = []
             num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
-            for i in range(num_leds):
-                if i in led_colors:
-                    led_r, led_g, led_b = led_colors[i]
-                    colors.append(RGBColor(led_r, led_g, led_b))
-                else:
-                    # Use zone color if no LED color is set
-                    zone_color = controller.db.get_color(device_index, zone_index)
-                    if zone_color:
-                        colors.append(RGBColor(*zone_color))
-                    else:
-                        colors.append(RGBColor(0, 0, 0))
-            
+            colors = build_led_colors(controller, device_index, zone_index, num_leds)
+
             # Set zone to Direct mode and apply colors
             if device.active_mode != 0:  # 0 is usually Direct mode
                 # Try to find and set Direct mode
@@ -843,9 +893,7 @@ def create_app():
             controller.db.set_led_control_enabled(device_index, zone_index, True)
             
             # Get gradient colors and apply to hardware
-            from openrgb.utils import RGBColor
-            led_colors = controller.db.get_led_colors(device_index, zone_index)
-            colors = [RGBColor(*led_colors.get(i, (0, 0, 0))) for i in range(num_leds)]
+            colors = build_led_colors(controller, device_index, zone_index, num_leds)
             
             # Set zone to Direct mode
             if device.active_mode != 0:
@@ -889,9 +937,7 @@ def create_app():
             controller.db.set_led_control_enabled(device_index, zone_index, True)
             
             # Apply to hardware - much faster than individual updates
-            from openrgb.utils import RGBColor
-            color = RGBColor(r, g, b)
-            colors = [color] * num_leds
+            colors = build_led_colors(controller, device_index, zone_index, num_leds)
             
             # Set zone to Direct mode
             if device.active_mode != 0:
@@ -922,14 +968,15 @@ def create_app():
             # Disable LED control
             controller.db.set_led_control_enabled(device_index, zone_index, False)
             
-            # Reapply zone color
+            # Reapply zone color (honoring brightness/saturation, same as static mode)
             zone_color = controller.db.get_color(device_index, zone_index)
             if zone_color:
+                brightness, saturation = controller.db.get_brightness_saturation(device_index, zone_index)
                 device = controller.client.devices[device_index]
                 zone = device.zones[zone_index]
-                zone.set_color(RGBColor(*zone_color), fast=True)
+                zone.set_color(RGBColor(*apply_brightness_saturation(*zone_color, brightness, saturation)), fast=True)
                 device.show()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             import traceback
@@ -953,23 +1000,16 @@ def create_app():
             
             if new_state:
                 # Re-enable LED control - apply saved LED colors
-                led_colors = controller.db.get_led_colors(device_index, zone_index)
-                if led_colors:
+                if controller.db.get_led_colors(device_index, zone_index):
                     num_leds = len(zone.leds) if hasattr(zone, 'leds') else zone.leds_count
-                    colors = []
-                    for i in range(num_leds):
-                        if i in led_colors:
-                            colors.append(RGBColor(*led_colors[i]))
-                        else:
-                            zone_color = controller.db.get_color(device_index, zone_index)
-                            colors.append(RGBColor(*zone_color) if zone_color else RGBColor(0, 0, 0))
-                    zone.set_colors(colors, fast=True)
+                    zone.set_colors(build_led_colors(controller, device_index, zone_index, num_leds), fast=True)
                     device.show()
             else:
                 # Disable LED control - apply zone color
                 zone_color = controller.db.get_color(device_index, zone_index)
                 if zone_color:
-                    zone.set_color(RGBColor(*zone_color), fast=True)
+                    brightness, saturation = controller.db.get_brightness_saturation(device_index, zone_index)
+                    zone.set_color(RGBColor(*apply_brightness_saturation(*zone_color, brightness, saturation)), fast=True)
                     device.show()
             
             return jsonify({'success': True, 'enabled': new_state})
@@ -985,6 +1025,14 @@ def create_app():
         # Use a flag to only run once
         if not hasattr(restore_static_colors_once, 'done'):
             restore_static_colors_once.done = True
+
+            # Start this first and unconditionally. It used to run at the end of
+            # the try block below, so if OpenRGB happened to be down on first
+            # request the restore raised and the keepalive never started at all
+            # for the life of the process — the app then stayed passive even
+            # after OpenRGB came back.
+            start_keepalive()
+
             try:
                 controller = get_controller()
                 effect_manager = get_effect_manager()
@@ -1011,8 +1059,6 @@ def create_app():
                 
                 if restored_count > 0:
                     logger.warning(f"🎨 Restored {restored_count} static colors on startup")
-
-                start_keepalive()
             except Exception as e:
                 logger.error(f"Error restoring static colors: {e}")
     

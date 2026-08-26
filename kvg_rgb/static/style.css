@@ -1392,6 +1392,57 @@ footer {
     gap: 0.5rem;
 }
 
+/* --- State-dependent control affordances --- */
+
+/* Selection summary above the left-hand controls, so it's clear what
+   "Apply to Selected" is actually going to act on. */
+.selection-summary {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* A whole control group that can't act right now (nothing selected). */
+.section-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+/* Any individually gated control — a button/input that would silently do
+   nothing in the zone's current mode. */
+.zone-actions button:disabled,
+.zone-actions input:disabled,
+.btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+/* Tells you at a glance which mode a zone is in, so the greyed-out
+   controls next to it make sense. */
+.zone-mode-badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+    border: 1px solid var(--color-accent-muted);
+    color: var(--color-accent-blue);
+}
+
+.zone-mode-badge.mode-perled {
+    border-color: var(--color-accent-green);
+    color: var(--color-accent-green);
+}
+
 .modal-wide {
     width: min(900px, 95vw);
 }

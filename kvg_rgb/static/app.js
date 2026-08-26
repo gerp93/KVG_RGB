@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecentColors();
     loadDevices();
     setupEffectControls();
+    // Nothing is selected on load, so put the selection-dependent controls
+    // into their disabled state up front rather than waiting for the first
+    // selection change.
+    updateSelectionStatus();
 });
 
 // Load devices from API
@@ -35,7 +39,9 @@ async function loadDevices() {
             displayDevices();
             updateStatus('✓ Connected to OpenRGB', 'success');
         } else {
-            updateStatus('✗ Error: ' + devicesData.error, 'error');
+            // The backend already phrases connection failures in terms the user
+            // can act on, so show its message as-is rather than prefixing it.
+            updateStatus('⚠ ' + devicesData.error, 'error');
         }
     } catch (error) {
         updateStatus('✗ Failed to connect to OpenRGB server', 'error');
@@ -146,6 +152,25 @@ function displayDevices() {
                 <div class="zones-container">
                     ${device.zones.filter(z => !z.excluded).map((zone) => {
                         const originalZoneIndex = device.zones.indexOf(zone);
+
+                        // A zone is in exactly one mode, and the three are mutually
+                        // exclusive on the hardware. Drive every control's enabled
+                        // state off this rather than leaving controls live that
+                        // silently do nothing.
+                        const hasEffect = zone.effect && zone.effect !== 'static';
+                        const perLed = !!zone.led_control_enabled;
+                        // Rainbow/wave synthesize their own hues, so a base color
+                        // is meaningless for them; breathing/cycle use it.
+                        const ignoresBaseColor = zone.effect === 'rainbow' || zone.effect === 'wave';
+
+                        const modeBadge = hasEffect
+                            ? `<span class="zone-mode-badge mode-effect">${zone.effect}</span>`
+                            : perLed
+                                ? `<span class="zone-mode-badge mode-perled">per-LED</span>`
+                                : '';
+
+                        const effectLockNote = `Unavailable while the "${zone.effect}" effect is running — set this zone to Static first`;
+
                         return `
                         <div class="zone-item-selectable ${isZoneSelected(device.index, originalZoneIndex) ? 'selected' : ''}"
                              data-device="${device.index}"
@@ -161,25 +186,27 @@ function displayDevices() {
                                             <span class="zone-original-name">${zone.name}</span>
                                         ` : zone.name}
                                     </div>
-                                    <div class="zone-led-count">${zone.leds} LEDs</div>
+                                    <div class="zone-led-count">${zone.leds} LEDs ${modeBadge}</div>
                                 </div>
                                 <div class="zone-actions">
                                     ${!zone.led_control_enabled ? `
-                                        <input type="color" 
-                                               class="color-picker-mini" 
+                                        <input type="color"
+                                               class="color-picker-mini"
                                                value="${zone.color ? rgbToHex(zone.color.r, zone.color.g, zone.color.b) : '#000000'}"
                                                onclick="event.stopPropagation()"
                                                onchange="setZoneColorFromPicker(${device.index}, ${originalZoneIndex}, this.value)"
-                                               title="Zone color">
+                                               ${ignoresBaseColor ? 'disabled' : ''}
+                                               title="${ignoresBaseColor ? `The ${zone.effect} effect generates its own colors` : 'Zone color'}">
                                     ` : ''}
-                                    <button class="btn-mini" 
+                                    <button class="btn-mini"
                                             onclick="event.stopPropagation(); editZoneName(${device.index}, ${originalZoneIndex}, '${zone.name.replace(/'/g, "\\'")}', '${(zone.friendly_name || '').replace(/'/g, "\\'")}')"
                                             title="Set friendly name">
                                         ✏️
                                     </button>
-                                    <button class="btn-mini btn-flash" 
+                                    <button class="btn-mini btn-flash"
                                             onclick="event.stopPropagation(); flashZone(${device.index}, ${originalZoneIndex})"
-                                            title="Flash zone to identify">
+                                            ${hasEffect ? 'disabled' : ''}
+                                            title="${hasEffect ? effectLockNote : 'Flash zone to identify'}">
                                         ⚡
                                     </button>
                                     <select class="effect-selector" 
@@ -200,16 +227,18 @@ function displayDevices() {
                                         </button>
                                     ` : ''}
                                     ${zone.leds > 1 ? `
-                                        <button class="btn-mini" 
+                                        <button class="btn-mini"
                                                 onclick="event.stopPropagation(); toggleLEDView(${device.index}, ${originalZoneIndex}, ${zone.leds})"
-                                                title="Advanced LED control">
+                                                ${hasEffect ? 'disabled' : ''}
+                                                title="${hasEffect ? effectLockNote : 'Advanced LED control'}">
                                             🎛️
                                         </button>
                                         ${zone.has_led_colors ? `
-                                            <button class="btn-mini" 
+                                            <button class="btn-mini"
                                                     id="led-toggle-${device.index}-${originalZoneIndex}"
                                                     onclick="event.stopPropagation(); toggleLEDControlEnabled(${device.index}, ${originalZoneIndex})"
-                                                    title="${zone.led_control_enabled ? 'Disable LED control (use zone color)' : 'Enable LED control (use saved LED colors)'}">
+                                                    ${hasEffect ? 'disabled' : ''}
+                                                    title="${hasEffect ? effectLockNote : (zone.led_control_enabled ? 'Disable LED control (use zone color)' : 'Enable LED control (use saved LED colors)')}">
                                                 ${zone.led_control_enabled ? '⏸️' : '▶️'}
                                             </button>
                                         ` : ''}
@@ -452,10 +481,30 @@ function toggleZoneSelection(deviceIndex, zoneIndex) {
     updateSelectionStatus();
 }
 
+// Enable/disable the left-hand controls, which only act on a selection.
+// Previously they stayed fully enabled with nothing selected and only told you
+// after you'd already clicked.
+function setSelectionControlsEnabled(enabled) {
+    const applyBtn = document.getElementById('applyColorBtn');
+    if (applyBtn) applyBtn.disabled = !enabled;
+
+    ['brightnessSlider', 'saturationSlider'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+    });
+
+    ['colorSection', 'brightnessSection', 'saturationSection'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('section-disabled', !enabled);
+    });
+}
+
 function updateSelectionStatus() {
     const count = selectedItems.length;
+    setSelectionControlsEnabled(count > 0);
+
     if (count === 0) {
-        updateSelectionText('No devices or zones selected');
+        updateSelectionText('Select a device or zone to control');
         // Reset sliders to default
         document.getElementById('brightnessSlider').value = 100;
         document.getElementById('saturationSlider').value = 100;
@@ -1208,12 +1257,12 @@ async function setZoneEffect(deviceIndex, zoneIndex, effectType) {
         let effectParams = null;
         
         if (effectType === 'breathing') {
-            // Use current color for breathing effect
-            const device = devices[deviceIndex];
-            const zone = device.zones[zoneIndex];
-            // Try to get stored color or use default
+            // Breathe the zone's own color, falling back to red only if it
+            // doesn't have one yet. (This used to always send red regardless.)
+            const zone = devices[deviceIndex]?.zones[zoneIndex];
             effectParams = {
-                color: { r: 255, g: 0, b: 0 },  // Default red
+                color: zone && zone.color ? { r: zone.color.r, g: zone.color.g, b: zone.color.b }
+                                          : { r: 255, g: 0, b: 0 },
                 speed: 1.0
             };
         } else if (effectType === 'rainbow' || effectType === 'wave') {
