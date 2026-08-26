@@ -729,10 +729,16 @@ def create_app():
                         break
             
             # Set LEDs
+            # fast=True skips openrgb-python's default post-write behavior of
+            # reading the *entire device* back from the SDK server to refresh
+            # its local cache -- a synchronous round-trip nothing here reads
+            # afterward. Left at the default, gradients/LED fills competed
+            # with the effects thread's own per-frame reads for the same
+            # connection, which is what made both "sporadic".
             print(f"🎨 Setting {len(colors)} LED colors for device {device_index}, zone {zone_index}")
             for idx, color in enumerate(colors):
                 print(f"  LED {idx}: {color}")
-            zone.set_colors(colors)
+            zone.set_colors(colors, fast=True)
             device.show()
             print(f"✅ LED colors applied successfully")
             
@@ -785,19 +791,19 @@ def create_app():
             for _ in range(3):
                 # Turn LED white
                 colors[led_index] = RGBColor(255, 255, 255)
-                zone.set_colors(colors)
+                zone.set_colors(colors, fast=True)
                 device.show()
                 time.sleep(0.15)
                 
                 # Turn LED off
                 colors[led_index] = RGBColor(0, 0, 0)
-                zone.set_colors(colors)
+                zone.set_colors(colors, fast=True)
                 device.show()
                 time.sleep(0.15)
             
             # Restore original color
             colors[led_index] = RGBColor(*original_color)
-            zone.set_colors(colors)
+            zone.set_colors(colors, fast=True)
             device.show()
             
             return jsonify({'success': True})
@@ -849,7 +855,7 @@ def create_app():
                         break
             
             # Apply colors
-            zone.set_colors(colors)
+            zone.set_colors(colors, fast=True)
             device.show()
             
             return jsonify({'success': True})
@@ -895,7 +901,7 @@ def create_app():
                         break
             
             # Apply colors in one operation
-            zone.set_colors(colors)
+            zone.set_colors(colors, fast=True)
             device.show()
             
             return jsonify({'success': True})
@@ -921,7 +927,7 @@ def create_app():
             if zone_color:
                 device = controller.client.devices[device_index]
                 zone = device.zones[zone_index]
-                zone.set_color(RGBColor(*zone_color))
+                zone.set_color(RGBColor(*zone_color), fast=True)
                 device.show()
             
             return jsonify({'success': True})
@@ -957,13 +963,13 @@ def create_app():
                         else:
                             zone_color = controller.db.get_color(device_index, zone_index)
                             colors.append(RGBColor(*zone_color) if zone_color else RGBColor(0, 0, 0))
-                    zone.set_colors(colors)
+                    zone.set_colors(colors, fast=True)
                     device.show()
             else:
                 # Disable LED control - apply zone color
                 zone_color = controller.db.get_color(device_index, zone_index)
                 if zone_color:
-                    zone.set_color(RGBColor(*zone_color))
+                    zone.set_color(RGBColor(*zone_color), fast=True)
                     device.show()
             
             return jsonify({'success': True, 'enabled': new_state})

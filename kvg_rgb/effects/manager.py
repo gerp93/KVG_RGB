@@ -173,7 +173,17 @@ class EffectManager:
     def _apply_effect(self, client: OpenRGBClient, device_idx: int, zone_idx: int, effect_data: dict):
         """
         Apply a single effect to a zone.
-        
+
+        Every write below uses fast=True and skips device.update(). Without
+        it, Zone.set_color() defaults to reading the *entire device* back
+        from the SDK server after every write (to refresh openrgb-python's
+        local cache), and this loop ran at 20 FPS calling it again on top of
+        that -- up to two full-device round-trips per zone per frame. This
+        loop never reads that cache back (every frame recomputes the color
+        fresh from elapsed time), so none of that was doing anything except
+        stalling the loop and starving other zones/effects sharing the same
+        connection -- which is what made effects "sporadic".
+
         Args:
             client: OpenRGB client
             device_idx: Device index
@@ -182,16 +192,16 @@ class EffectManager:
         """
         device = client.devices[device_idx]
         zone = device.zones[zone_idx]
-        
+
         effect_type = effect_data['type']
         params = effect_data['params']
         elapsed = time.time() - effect_data['start_time']
         speed = params.get('speed', 1.0)
-        
+
         if effect_type == 'rainbow':
             color = self._rainbow_color(elapsed, speed)
-            zone.set_color(color)
-            
+            zone.set_color(color, fast=True)
+
         elif effect_type == 'breathing':
             base_color = params.get('color', {'r': 255, 'g': 0, 'b': 0})
             color = self._breathing_color(
@@ -201,13 +211,13 @@ class EffectManager:
                 elapsed,
                 speed
             )
-            zone.set_color(color)
-            
+            zone.set_color(color, fast=True)
+
         elif effect_type == 'wave':
             # Wave effect - color shifts through spectrum
             color = self._wave_color(elapsed, speed, zone_idx)
-            zone.set_color(color)
-            
+            zone.set_color(color, fast=True)
+
         elif effect_type == 'cycle':
             # Cycle through preset colors
             colors = params.get('colors', [
@@ -216,9 +226,7 @@ class EffectManager:
                 {'r': 0, 'g': 0, 'b': 255}
             ])
             color = self._cycle_color(colors, elapsed, speed)
-            zone.set_color(color)
-        
-        device.update()
+            zone.set_color(color, fast=True)
     
     def _rainbow_color(self, elapsed: float, speed: float) -> RGBColor:
         """Generate rainbow color based on time."""

@@ -335,16 +335,31 @@ class RGBController:
 
     def reassert_colors(self):
         """
-        Re-apply every stored static color to the hardware.
+        Re-apply stored static colors to hardware that's sitting idle.
 
         Used by the keepalive: ASUS Aura controllers revert to their onboard
         effect if the SDK stops talking to them, and because the writes are
         one-way nothing reports that it happened. Periodically re-asserting
-        both the mode and the colors is what keeps the board under our
-        control instead of drifting back to its default cycle.
+        mode + color is what keeps an idle board under our control instead
+        of drifting back to its default cycle.
 
-        Zones running a software effect are skipped — the effects thread
-        already drives those, and writing over it would fight.
+        A whole *device* is skipped — not just the individual zone — if any
+        of its zones are under active control: a running software effect,
+        or LED-level/gradient control. Two reasons:
+
+        1. Mode is a device-wide OpenRGB setting. `_set_direct_mode()`
+           resets the device's LED buffer, so reasserting it while the
+           effects thread is mid-write to another zone on the same device
+           blanks/stutters that zone too — this is what made effects
+           "sporadic" and caused other zones to flash dark.
+        2. This method only reads the flat `colors` table. A zone with
+           LED-level control enabled (gradients, per-LED colors) keeps its
+           real data in `led_colors` instead — reasserting `colors` for it
+           would stomp the gradient back to a flat color, which is the
+           "zones reset to the main pick-color thing" symptom.
+
+        Net effect: a device with anything actively happening on it is left
+        alone entirely; only devices that are fully idle get kept alive.
         """
         self.ensure_connected()
         applied = 0
@@ -352,17 +367,22 @@ class RGBController:
             if self.config.is_device_excluded(device.name):
                 continue
 
+            actively_managed = False
             zone_colors = {}
             for zone_idx in range(len(device.zones)):
                 effect = self.db.get_effect(device_idx, zone_idx)
                 if effect and effect[0] != 'static':
-                    continue  # effects thread owns this zone
+                    actively_managed = True
+                    break
+                if self.db.is_led_control_enabled(device_idx, zone_idx):
+                    actively_managed = True
+                    break
                 color = self.db.get_color(device_idx, zone_idx)
                 if color:
                     brightness, saturation = self.db.get_brightness_saturation(device_idx, zone_idx)
                     zone_colors[zone_idx] = apply_brightness_saturation(*color, brightness, saturation)
 
-            if not zone_colors:
+            if actively_managed or not zone_colors:
                 continue
 
             self._set_direct_mode(device)
