@@ -35,6 +35,7 @@ jobs:
       entry_point: kvg_rgb/gui.py
       windowed: true
       version_file: kvg_rgb/__init__.py
-      extra_add_data: "kvg_rgb/templates:kvg_rgb/templates;kvg_rgb/static:kvg_rgb/static;kvg_rgb/scripts:kvg_rgb/scripts"
+      extra_add_data: "kvg_rgb/templates:kvg_rgb/templates;kvg_rgb/static:kvg_rgb/static;kvg_rgb/scripts:kvg_rgb/scripts;assets:assets"
+      icon_path: assets/icon
     permissions:
       contents: write

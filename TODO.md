@@ -12,7 +12,6 @@ and its `REPO_SCOPE.md` entry for that). Just what's not built yet.
 - LED pattern library (save/load custom LED patterns)
 - Scheduling (time-based color changes)
 - Integration with other apps (game events, music visualization, etc.)
-- `assets/logo.png` + generated icons (window/taskbar icon, packaged-binary icon) — needs real source artwork, not fabricated
 - Native OS file picker for the Settings → Database Location "Set" action, instead of typing a path
 - One-click restart after a database relocate or an applied update, instead of a manual restart
 - Full-fidelity theming: the base palette (`--primary-color`, `--bg-card`, etc. in `style.css`) is sourced from the vendored VisualAssault theme, but the many translucent `rgba(...)` hover/glow/badge accents throughout `style.css` are still hand-tuned against the old indigo palette rather than derived from the active theme

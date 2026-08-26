@@ -7,7 +7,9 @@ browser tab. This is the entry point PyInstaller builds for the packaged
 desktop app.
 """
 import socket
+import sys
 import threading
+from pathlib import Path
 
 import webview
 
@@ -19,6 +21,26 @@ def _free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
+
+
+def _app_root():
+    """Repo root when running from source, or the PyInstaller extraction dir when frozen."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).resolve().parent.parent
+
+
+def _window_icon():
+    """
+    Path to the icon pywebview should use, or None.
+
+    Windows needs an actual .ico (System.Drawing.Icon can't load a plain
+    PNG); GTK/Cocoa can load the PNG directly, so only Windows gets the
+    separate assets/icon.ico.
+    """
+    root = _app_root()
+    candidate = root / 'assets' / 'icon.ico' if sys.platform == 'win32' else root / 'kvg_rgb' / 'static' / 'logo.png'
+    return str(candidate) if candidate.exists() else None
 
 
 def run_gui():
@@ -40,7 +62,7 @@ def run_gui():
         height=800,
         min_size=(900, 600),
     )
-    webview.start()
+    webview.start(icon=_window_icon())
 
 
 if __name__ == '__main__':

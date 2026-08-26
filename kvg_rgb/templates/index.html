@@ -6,11 +6,12 @@
     <title>KVG RGB Controller</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/visual-assault-themes.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='logo.png') }}">
 </head>
 <body class="{{ theme }}-theme">
     <div class="container">
         <header>
-            <h1>🌈 KVG RGB Controller</h1>
+            <h1><img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo"> KVG RGB Controller</h1>
             <p>Control your RGB devices</p>
             <button class="btn btn-info btn-small settings-btn" onclick="openSettings()" title="Open settings">⚙️ Settings</button>
         </header>

@@ -1,3 +1,5 @@
+<img src="assets/logo.png" alt="KVG RGB Controller logo" width="160">
+
 # KVG RGB Controller
 
 A desktop app for controlling RGB devices via [OpenRGB](https://openrgb.org/) — color picker, per-zone control, effects, and zone resizing, in a native window. A full CLI is also available if you run it from source.

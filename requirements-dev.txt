@@ -1,2 +1,5 @@
 # Development dependencies
 pyinstaller>=6.0.0
+
+# scripts/generate-icons.py
+pillow>=10.0.0
